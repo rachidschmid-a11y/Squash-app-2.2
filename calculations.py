@@ -18,13 +18,14 @@ def format_dataframe(df):
     cols = [c for c in cfg.ORDERED_COLUMNS if c in df_clean.columns]
     return df_clean[cols]
 
-def speichern_logik(spieler, einheiten, eingetragen_von, gespielt_am, uhrzeit, max_retries=3):
+def speichern_logik(spieler, einheiten, eingetragen_von, gespielt_am, uhrzeit, ermaessigt=False, max_retries=3):
     """
     Speichert eine neue Spiel-Session und zieht die Kosten vom Kartenguthaben ab.
 
     Der Preis pro Einheit richtet sich nach der Preisliste des Betreibers
-    (siehe preisliste.py), abhängig von Wochentag/Feiertag und der
-    Start-Uhrzeit der Session.
+    (siehe preisliste.py), abhängig von Wochentag/Feiertag, der
+    Start-Uhrzeit der Session und ob der ermäßigte Schüler-/Studenten-Tarif
+    gilt (nur an Wochentagen verfügbar).
 
     WICHTIG: Der individuelle Rabatt-Faktor der Karte (Vergünstigung) wird
     HIER NICHT angewendet. Laut Abgleich mit den echten Kartenbuchungen des
@@ -47,7 +48,7 @@ def speichern_logik(spieler, einheiten, eingetragen_von, gespielt_am, uhrzeit, m
             return "error", "Keine aktive Karte vorhanden"
 
         alter_guthaben = karte["guthaben"]
-        preis_pro_einheit = preisliste.ermittle_preis(gespielt_am, uhrzeit)
+        preis_pro_einheit = preisliste.ermittle_preis(gespielt_am, uhrzeit, ermaessigt)
         kosten_fuer_spiel = round(einheiten * preis_pro_einheit, 2)
         muss_abgerechnet_werden = alter_guthaben < kosten_fuer_spiel
         kosten_pro_person = round(kosten_fuer_spiel / len(spieler), 2)
@@ -70,6 +71,7 @@ def speichern_logik(spieler, einheiten, eingetragen_von, gespielt_am, uhrzeit, m
                 "eingetragen_am": datetime.now(timezone.utc).isoformat(),
                 "gespielt_am": gespielt_am.isoformat(),
                 "gespielt_uhrzeit": uhrzeit.isoformat(),
+                "ermaessigt": ermaessigt,
                 "abgerechnet": False
             })
             if not erfolg:

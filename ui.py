@@ -97,7 +97,7 @@ def render_abrechnung_page():
                     anfangsguthaben_eingabe = st.number_input(
                         "Wie viel Guthaben wird auf die Karte geladen (€)?",
                         min_value=0.01,
-                        value=cfg.STANDARD_ANFANGSGUTHABEN,
+                        value=cfg.STANDARD_ANFANGSGUTHABEN_MIT_VERGUENSTIGUNG,
                         step=1.0,
                         key="card_anfangsguthaben",
                     )
@@ -147,7 +147,17 @@ def render_abrechnung_page():
         with col2:
             gespielt_am = st.date_input("Gespielt am", jetzt_berlin.date(), key="fin_date")
 
-        stufen = preisliste.preisstufen_fuer_datum(gespielt_am)
+        ist_wochenende = preisliste.ist_wochenend_tarif(gespielt_am)
+        ermaessigt = False
+        if ist_wochenende:
+            st.caption("Am Wochenende/Feiertag gibt es laut Preisliste keinen ermäßigten Tarif.")
+        else:
+            ermaessigt = st.checkbox(
+                "Ermäßigter Tarif (Schüler/Studenten)?",
+                key="fin_ermaessigt",
+            )
+
+        stufen = preisliste.preisstufen_fuer_datum(gespielt_am, ermaessigt)
         zeitraum_optionen = {
             f"{start.strftime('%H:%M')}–{ende.strftime('%H:%M')} Uhr ({preis:.2f} €/Einheit)": (start, preis)
             for start, ende, preis in stufen
@@ -162,10 +172,10 @@ def render_abrechnung_page():
                     default_index = i
                     break
 
-        # Eigener Key je nachdem ob Wochentag/Wochenende, damit ein
-        # Datumswechsel zwischen den beiden Tarif-Sets nicht zu einer
-        # ungültigen alten Auswahl führt.
-        zeitraum_key = f"fin_zeitraum_{'we' if preisliste.ist_wochenend_tarif(gespielt_am) else 'wt'}"
+        # Eigener Key je nachdem ob Wochentag/Wochenende und ermäßigt/regulär,
+        # damit ein Wechsel zwischen den Tarif-Sets nicht zu einer ungültigen
+        # alten Auswahl führt.
+        zeitraum_key = f"fin_zeitraum_{'we' if ist_wochenende else ('wt_erm' if ermaessigt else 'wt')}"
         auswahl_label = st.radio(
             "In welchem Zeitraum wurde gespielt?",
             zeitraum_labels,
@@ -189,7 +199,7 @@ def render_abrechnung_page():
             if len(auswahl) == 0:
                 st.warning("Bitte Spieler auswählen")
             else:
-                status, msg = calc.speichern_logik(auswahl, einheiten, eingetragen_von, gespielt_am, uhrzeit)
+                status, msg = calc.speichern_logik(auswahl, einheiten, eingetragen_von, gespielt_am, uhrzeit, ermaessigt)
                 if status == "success":
                     st.success(msg)
                 elif status == "warning":
