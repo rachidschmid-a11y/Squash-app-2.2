@@ -1,0 +1,18 @@
+# Versionen gepinnt für reproduzierbare Installationen.
+# Getestet mit Python 3.11+ (siehe devcontainer.json).
+# Streamlit-Version: mindestens 1.51 nötig, weil der width-Parameter für
+# st.plotly_chart (genutzt in visualizations.py) erst ab dieser Version
+# existiert - siehe Erklärung in meiner Antwort zu eurer 1.50.0-Notiz.
+streamlit>=1.51,<2.0
+pandas>=2.2,<4.0
+supabase>=2.15,<3.0
+
+# Hinweis: "plotly-express" war der alte, seit Plotly 4.x obsolete Paketname.
+# Der Code importiert "plotly.express", das inzwischen Teil des reguären
+# "plotly"-Pakets ist -> hier direkt "plotly" statt "plotly-express".
+plotly>=6.0,<7.0
+matplotlib>=3.9,<4.0
+
+# Stellt die IANA-Zeitzonendatenbank bereit (für Europe/Berlin in zeit_utils.py),
+# falls das Server-Image sie nicht schon systemseitig mitbringt.
+tzdata>=2024.1
