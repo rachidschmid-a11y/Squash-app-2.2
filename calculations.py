@@ -1,18 +1,28 @@
 import pandas as pd
-from datetime import datetime, timezone
+from datetime import datetime, time as dtime, timezone
 import database as db
 import config as cfg
 import zeit_utils
 import preisliste
 
+def _parse_uhrzeit(wert):
+    teile = str(wert).split(":")
+    return dtime(int(teile[0]), int(teile[1]))
+
 def format_dataframe(df):
     df_clean = df.copy()
-    if "gespielt_am" in df_clean.columns:
-        df_clean["gespielt_am"] = pd.to_datetime(df_clean["gespielt_am"]).dt.strftime('%d.%m.%Y')
-    if "gespielt_uhrzeit" in df_clean.columns:
+    if "gespielt_uhrzeit" in df_clean.columns and "gespielt_am" in df_clean.columns:
+        daten_geparst = pd.to_datetime(df_clean["gespielt_am"])
+        df_clean["gespielt_uhrzeit"] = [
+            preisliste.zeitraum_label(datum.date(), _parse_uhrzeit(uhrzeit)) if uhrzeit else ""
+            for datum, uhrzeit in zip(daten_geparst, df_clean["gespielt_uhrzeit"])
+        ]
+    elif "gespielt_uhrzeit" in df_clean.columns:
         df_clean["gespielt_uhrzeit"] = df_clean["gespielt_uhrzeit"].apply(
             lambda x: str(x)[:5] if x else ""
         )
+    if "gespielt_am" in df_clean.columns:
+        df_clean["gespielt_am"] = pd.to_datetime(df_clean["gespielt_am"]).dt.strftime('%d.%m.%Y')
     if "eingetragen_am" in df_clean.columns:
         df_clean["eingetragen_am"] = zeit_utils.to_berlin_time_str(df_clean["eingetragen_am"])
     cols = [c for c in cfg.ORDERED_COLUMNS if c in df_clean.columns]
