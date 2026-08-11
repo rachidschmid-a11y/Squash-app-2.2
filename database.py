@@ -1,0 +1,236 @@
+import streamlit as st
+from supabase import create_client
+
+_client = None
+
+def _get_client():
+    """
+    Erstellt den Supabase-Client beim ersten echten Zugriff (lazy) und
+    cached ihn danach. Vorteil gegenüber einer Erstellung direkt beim
+    Modul-Import: database.py lässt sich so auch importieren/testen, ohne
+    dass sofort gültige st.secrets vorhanden sein müssen - der Fehler tritt
+    erst beim tatsächlichen Datenbankzugriff auf und wird dort von den
+    einzelnen try/except-Blöcken sauber abgefangen.
+    """
+    global _client
+    if _client is None:
+        _client = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+    return _client
+
+# --- FINANZ-QUERIES (ex app.py) ---
+
+def get_karte():
+    try:
+        result = _get_client().table("karte").select("*").eq("aktiv", True).execute()
+        return result.data[0] if len(result.data) > 0 else None
+    except Exception as e:
+        st.error(f"Fehler beim Laden der Karte: {e}")
+        return None
+
+def get_letzte_inaktive_karte():
+    try:
+        result = _get_client().table("karte").select("*").eq("aktiv", False).order("id", desc=True).limit(1).execute()
+        return result.data[0] if result.data else None
+    except Exception as e:
+        st.error(f"Fehler beim Laden der letzten Karte: {e}")
+        return None
+
+def get_spiele():
+    try:
+        result = _get_client().table("spiele").select("*").eq("abgerechnet", False).order("id", desc=True).execute()
+        return result.data or []
+    except Exception as e:
+        st.error(f"Fehler beim Laden der Spiele: {e}")
+        return []
+
+def get_letzte_abrechnung():
+    try:
+        last_card = get_letzte_inaktive_karte()
+        if not last_card:
+            return [], "Unbekannt"
+
+        payer = last_card.get("bezahlt_von", "dem Zahler")
+        result = _get_client().table("abrechnung").select("*").eq("karte_id", last_card["id"]).execute()
+        return result.data or [], payer
+    except Exception as e:
+        st.error(f"Fehler beim Laden der letzten Abrechnung: {e}")
+        return [], "Unbekannt"
+
+def insert_spiel(data: dict) -> bool:
+    try:
+        _get_client().table("spiele").insert(data).execute()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Speichern des Spiels: {e}")
+        return False
+
+def update_karte_guthaben(karte_id, alter_guthaben, neues_guthaben) -> bool:
+    """
+    Aktualisiert das Guthaben einer Karte.
+
+    Nutzt Optimistic Locking: Das Update wird nur ausgeführt, wenn das
+    Guthaben in der Datenbank noch exakt dem zuvor ausgelesenen Wert
+    (`alter_guthaben`) entspricht. So wird verhindert, dass zwei gleichzeitige
+    Sessions (z.B. von zwei Handys aus) sich gegenseitig überschreiben, ohne
+    dass eine der beiden Änderungen "verloren geht".
+
+    Gibt True zurück, wenn das Update erfolgreich war, False wenn
+    zwischenzeitlich jemand anderes das Guthaben geändert hat (oder ein
+    Fehler aufgetreten ist) - dann sollte die aufrufende Stelle die Karte
+    neu laden und es erneut versuchen.
+    """
+    try:
+        result = (
+            _get_client()
+            .table("karte")
+            .update({"guthaben": round(neues_guthaben, 2)})
+            .eq("id", karte_id)
+            .eq("guthaben", round(alter_guthaben, 2))
+            .execute()
+        )
+        return len(result.data) > 0
+    except Exception as e:
+        st.error(f"Fehler beim Aktualisieren des Guthabens: {e}")
+        return False
+
+def insert_abrechnung(data: dict) -> bool:
+    try:
+        _get_client().table("abrechnung").insert(data).execute()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Speichern der Abrechnung: {e}")
+        return False
+
+def set_spiele_abgerechnet() -> bool:
+    try:
+        _get_client().table("spiele").update({"abgerechnet": True}).eq("abgerechnet", False).execute()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Markieren der Spiele als abgerechnet: {e}")
+        return False
+
+def set_karte_inaktiv(karte_id) -> bool:
+    try:
+        _get_client().table("karte").update({"aktiv": False}).eq("id", karte_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Deaktivieren der Karte: {e}")
+        return False
+
+def insert_karte(data: dict) -> bool:
+    try:
+        _get_client().table("karte").insert(data).execute()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Anlegen der Karte: {e}")
+        return False
+
+def delete_spiel_by_id(spiel_id) -> bool:
+    try:
+        _get_client().table("spiele").delete().eq("id", spiel_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Löschen des Spiels: {e}")
+        return False
+
+def update_karte_zahler(karte_id, neuer_zahler) -> bool:
+    """Aktualisiert den Zahler einer bestehenden Karte im Falle eines Tippfehlers."""
+    try:
+        _get_client().table("karte").update({"bezahlt_von": neuer_zahler}).eq("id", karte_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Aktualisieren des Zahlers in der Datenbank: {e}")
+        return False
+
+def delete_karte(karte_id) -> bool:
+    """Löscht eine aktive Karte vollständig aus der Datenbank (Storno)."""
+    try:
+        _get_client().table("karte").delete().eq("id", karte_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Löschen der Karte in der Datenbank: {e}")
+        return False
+
+# --- SPIELER-VERWALTUNG ---
+
+def get_spieler():
+    """Alle Spieler (aktiv + inaktiv) mit id/name/aktiv - für die Verwaltungsseite."""
+    try:
+        result = _get_client().table("spieler").select("*").order("name").execute()
+        return result.data or []
+    except Exception as e:
+        st.error(f"Fehler beim Laden der Spieler: {e}")
+        return []
+
+def get_aktive_spieler_namen():
+    """Namen aller aktiven Spieler - für Auswahlfelder bei neuen Einträgen."""
+    try:
+        result = _get_client().table("spieler").select("name").eq("aktiv", True).order("name").execute()
+        return [row["name"] for row in (result.data or [])]
+    except Exception as e:
+        st.error(f"Fehler beim Laden der aktiven Spieler: {e}")
+        return []
+
+def get_alle_spieler_namen():
+    """Namen aller Spieler (aktiv + inaktiv) - für Statistik-Ansichten, damit
+    historische Daten von ausgeschiedenen Spielern nicht verschwinden."""
+    try:
+        result = _get_client().table("spieler").select("name").order("name").execute()
+        return [row["name"] for row in (result.data or [])]
+    except Exception as e:
+        st.error(f"Fehler beim Laden der Spieler: {e}")
+        return []
+
+def insert_spieler(name: str) -> bool:
+    try:
+        _get_client().table("spieler").insert({"name": name, "aktiv": True}).execute()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Anlegen des Spielers: {e}")
+        return False
+
+def set_spieler_aktiv(spieler_id, aktiv: bool) -> bool:
+    try:
+        _get_client().table("spieler").update({"aktiv": aktiv}).eq("id", spieler_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Aktualisieren des Spielers: {e}")
+        return False
+
+def delete_spieler(spieler_id) -> bool:
+    """Löscht einen Spieler endgültig aus der Spielerliste (z.B. bei einem
+    Tippfehler). Bereits gespeicherte Spiele/Ergebnisse mit diesem Namen
+    bleiben in der Datenbank erhalten, da sie den Namen nur als Text und
+    nicht als Fremdschlüssel referenzieren."""
+    try:
+        _get_client().table("spieler").delete().eq("id", spieler_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Löschen des Spielers: {e}")
+        return False
+
+# --- SPORT-QUERIES (ex Auswertung.py) ---
+
+def get_spielergebnisse():
+    try:
+        result = _get_client().table("spielergebnisse").select("*").order("gespielt_am", desc=True).execute()
+        return result.data or []
+    except Exception as e:
+        st.error(f"Fehler beim Laden der Spielergebnisse: {e}")
+        return []
+
+def save_spielergebnis(data: dict) -> bool:
+    try:
+        _get_client().table("spielergebnisse").insert(data).execute()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Speichern des Spielergebnisses in Supabase: {e}")
+        return False
+
+def delete_spielergebnis(result_id: int) -> bool:
+    try:
+        _get_client().table("spielergebnisse").delete().eq("id", result_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Löschen: {e}")
+        return False

@@ -1,0 +1,3 @@
+# Zusätzliche Abhängigkeiten nur für lokale Tests (nicht für's Deployment nötig)
+-r requirements.txt
+pytest>=8.0,<9.0
