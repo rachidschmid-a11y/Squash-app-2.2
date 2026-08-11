@@ -74,6 +74,23 @@ def preisstufen_fuer_datum(datum: date, ermaessigt: bool = False) -> list:
     return PREISSTUFEN_WOCHENTAG_ERMAESSIGT if ermaessigt else PREISSTUFEN_WOCHENTAG
 
 
+def beide_preise_fuer_datum(datum: date) -> list:
+    """
+    Gibt für ein Datum die Preisstufen mit BEIDEN Tarifen gleichzeitig zurück,
+    als Liste von (start, ende, preis_regulaer, preis_ermaessigt) - praktisch
+    für eine Anzeige, die beide Preise nebeneinander zeigt.
+
+    Am Wochenende/Feiertag ist preis_ermaessigt == preis_regulaer, weil es
+    dort laut Preisliste keinen ermäßigten Tarif gibt.
+    """
+    regulaer = preisstufen_fuer_datum(datum, ermaessigt=False)
+    ermaessigt = preisstufen_fuer_datum(datum, ermaessigt=True)
+    return [
+        (r_start, r_ende, r_preis, e_preis)
+        for (r_start, r_ende, r_preis), (_e_start, _e_ende, e_preis) in zip(regulaer, ermaessigt)
+    ]
+
+
 def ermittle_preis(datum: date, uhrzeit: time, ermaessigt: bool = False) -> float:
     """
     Liefert den Preis pro Einheit (€) für einen Spieltermin, basierend auf

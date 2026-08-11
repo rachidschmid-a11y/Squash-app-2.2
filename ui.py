@@ -153,29 +153,37 @@ def render_abrechnung_page():
             st.caption("Am Wochenende/Feiertag gibt es laut Preisliste keinen ermäßigten Tarif.")
         else:
             ermaessigt = st.checkbox(
-                "Ermäßigter Tarif (Schüler/Studenten)?",
+                "Ermäßigten Tarif (Schüler/Studenten) abrechnen?",
                 key="fin_ermaessigt",
             )
 
-        stufen = preisliste.preisstufen_fuer_datum(gespielt_am, ermaessigt)
-        zeitraum_optionen = {
-            f"{start.strftime('%H:%M')}–{ende.strftime('%H:%M')} Uhr ({preis:.2f} €/Einheit)": (start, preis)
-            for start, ende, preis in stufen
-        }
+        kombi_stufen = preisliste.beide_preise_fuer_datum(gespielt_am)
+        zeitraum_optionen = {}
+        for start, ende, preis_regulaer, preis_erm in kombi_stufen:
+            zeit_label = f"{start.strftime('%H:%M')}–{ende.strftime('%H:%M')} Uhr"
+            if preis_regulaer == preis_erm:
+                # Wochenende/Feiertag: kein ermäßigter Tarif verfügbar
+                label = f"{zeit_label} ({preis_regulaer:.2f} €/Einheit)"
+            else:
+                label = f"{zeit_label} — {preis_regulaer:.2f} € (ermäßigt **{preis_erm:.2f} €**)"
+            preis_gewaehlt = preis_erm if ermaessigt else preis_regulaer
+            zeitraum_optionen[label] = (start, preis_gewaehlt)
         zeitraum_labels = list(zeitraum_optionen.keys())
 
         # Passenden Zeitraum vorauswählen, wenn heute gespielt wurde
         default_index = 0
         if gespielt_am == jetzt_berlin.date():
-            for i, (start, ende, _preis) in enumerate(stufen):
+            for i, (start, ende, _preis_reg, _preis_erm) in enumerate(kombi_stufen):
                 if start <= jetzt_berlin.time() < ende:
                     default_index = i
                     break
 
-        # Eigener Key je nachdem ob Wochentag/Wochenende und ermäßigt/regulär,
-        # damit ein Wechsel zwischen den Tarif-Sets nicht zu einer ungültigen
-        # alten Auswahl führt.
-        zeitraum_key = f"fin_zeitraum_{'we' if ist_wochenende else ('wt_erm' if ermaessigt else 'wt')}"
+        # Eigener Key je nachdem ob Wochentag/Wochenende, damit ein
+        # Datumswechsel zwischen den beiden Tarif-Sets nicht zu einer
+        # ungültigen alten Auswahl führt. Das Umschalten der
+        # "ermäßigt"-Checkbox ändert die Label-Texte nicht (nur den intern
+        # zugeordneten Preis), braucht also keinen eigenen Key.
+        zeitraum_key = f"fin_zeitraum_{'we' if ist_wochenende else 'wt'}"
         auswahl_label = st.radio(
             "In welchem Zeitraum wurde gespielt?",
             zeitraum_labels,
