@@ -91,6 +91,24 @@ def beide_preise_fuer_datum(datum: date) -> list:
     ]
 
 
+def zeitraum_label(datum: date, uhrzeit: time) -> str:
+    """
+    Gibt den vollen Zeitraum-Text (z.B. "16:45–21:00 Uhr") für eine
+    gespeicherte Start-Uhrzeit zurück - für Anzeige/CSV-Export der
+    Spiele-Übersicht. Die Zeitgrenzen sind unabhängig vom ermäßigten Tarif
+    (nur die Preise unterscheiden sich), daher wird hier immer die reguläre
+    Tabelle als Nachschlagewerk verwendet.
+    """
+    stufen = preisstufen_fuer_datum(datum)
+    for start, ende, _preis in stufen:
+        if start <= uhrzeit < ende:
+            return f"{start.strftime('%H:%M')}–{ende.strftime('%H:%M')} Uhr"
+
+    # Randfall außerhalb bekannter Stufen (siehe ermittle_preis)
+    start, ende, _preis = stufen[0] if uhrzeit < stufen[0][0] else stufen[-1]
+    return f"{start.strftime('%H:%M')}–{ende.strftime('%H:%M')} Uhr"
+
+
 def ermittle_preis(datum: date, uhrzeit: time, ermaessigt: bool = False) -> float:
     """
     Liefert den Preis pro Einheit (€) für einen Spieltermin, basierend auf
