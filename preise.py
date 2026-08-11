@@ -12,7 +12,7 @@ nächsten Stufe).
 """
 from datetime import time
 
-# Montag bis Freitag
+# Montag bis Freitag - regulärer Preis
 PREISSTUFEN_WOCHENTAG = [
     (time(8, 0), time(15, 0), 19.00),
     (time(15, 0), time(16, 45), 18.00),
@@ -20,7 +20,16 @@ PREISSTUFEN_WOCHENTAG = [
     (time(21, 0), time(22, 0), 18.00),
 ]
 
-# Samstag, Sonntag und gesetzliche Feiertage (Berlin)
+# Montag bis Freitag - ermäßigter Tarif (Schüler + Studenten)
+PREISSTUFEN_WOCHENTAG_ERMAESSIGT = [
+    (time(8, 0), time(15, 0), 18.00),
+    (time(15, 0), time(16, 45), 17.00),
+    (time(16, 45), time(21, 0), 19.00),
+    (time(21, 0), time(22, 0), 17.00),
+]
+
+# Samstag, Sonntag und gesetzliche Feiertage (Berlin) - lt. Preisliste gibt
+# es hier KEINEN ermäßigten Tarif, nur den einen (regulären) Preis.
 PREISSTUFEN_WOCHENENDE = [
     (time(8, 0), time(10, 0), 17.00),
     (time(10, 0), time(20, 0), 19.00),

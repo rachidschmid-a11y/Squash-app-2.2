@@ -6,7 +6,8 @@
 # Diese Werte sind nur Startwerte für die Eingabefelder - der tatsächliche
 # Betrag/Faktor wird pro Karte individuell erfragt und in der Tabelle
 # "karte" gespeichert (Spalten anfangsguthaben, bezahlt_betrag, faktor).
-STANDARD_ANFANGSGUTHABEN = 250.0
+STANDARD_ANFANGSGUTHABEN = 250.0                  # Vorbelegung ohne Vergünstigung
+STANDARD_ANFANGSGUTHABEN_MIT_VERGUENSTIGUNG = 240.0  # Vorbelegung MIT Vergünstigung (lt. echter Karte)
 STANDARD_BEZAHLT_BETRAG = 200.0
 
 # Basis für die Verteilung der Karten-Abrechnung, wenn das Guthaben aufgebraucht ist:
@@ -18,4 +19,4 @@ STANDARD_BEZAHLT_BETRAG = 200.0
 ABRECHNUNG_BASIS = "kosten"
 
 # Sortierungs-Reihenfolge für Tabellen-Anzeigen
-ORDERED_COLUMNS = ["eingetragen_von", "gespielt_am", "gespielt_uhrzeit", "spieler", "eingetragen_am", "einheiten", "kosten"]
+ORDERED_COLUMNS = ["eingetragen_von", "gespielt_am", "gespielt_uhrzeit", "ermaessigt", "spieler", "eingetragen_am", "einheiten", "kosten"]

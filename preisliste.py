@@ -8,7 +8,11 @@ angefasst werden.
 """
 from datetime import date, time, timedelta
 
-from preise import PREISSTUFEN_WOCHENTAG, PREISSTUFEN_WOCHENENDE
+from preise import (
+    PREISSTUFEN_WOCHENTAG,
+    PREISSTUFEN_WOCHENTAG_ERMAESSIGT,
+    PREISSTUFEN_WOCHENENDE,
+)
 
 
 def _ostersonntag(jahr: int) -> date:
@@ -57,13 +61,20 @@ def ist_wochenend_tarif(datum: date) -> bool:
     return datum in _berliner_feiertage(datum.year)
 
 
-def preisstufen_fuer_datum(datum: date) -> list:
-    """Gibt die Liste der Preisstufen (start, ende, preis) zurück, die für
-    dieses Datum gelten - je nachdem ob Wochentag oder Wochenende/Feiertag."""
-    return PREISSTUFEN_WOCHENENDE if ist_wochenend_tarif(datum) else PREISSTUFEN_WOCHENTAG
+def preisstufen_fuer_datum(datum: date, ermaessigt: bool = False) -> list:
+    """
+    Gibt die Liste der Preisstufen (start, ende, preis) zurück, die für
+    dieses Datum (und ggf. den ermäßigten Schüler-/Studenten-Tarif) gelten.
+
+    Am Wochenende/Feiertag gibt es laut Preisliste des Betreibers keinen
+    ermäßigten Tarif - dort wird "ermaessigt" ignoriert.
+    """
+    if ist_wochenend_tarif(datum):
+        return PREISSTUFEN_WOCHENENDE
+    return PREISSTUFEN_WOCHENTAG_ERMAESSIGT if ermaessigt else PREISSTUFEN_WOCHENTAG
 
 
-def ermittle_preis(datum: date, uhrzeit: time) -> float:
+def ermittle_preis(datum: date, uhrzeit: time, ermaessigt: bool = False) -> float:
     """
     Liefert den Preis pro Einheit (€) für einen Spieltermin, basierend auf
     der Preisliste des Betreibers.
@@ -72,7 +83,7 @@ def ermittle_preis(datum: date, uhrzeit: time) -> float:
     berechnet, falls eine Session über eine Preisgrenze hinausgeht - das
     entspricht der üblichen Abrechnungspraxis beim Court-Buchen).
     """
-    stufen = preisstufen_fuer_datum(datum)
+    stufen = preisstufen_fuer_datum(datum, ermaessigt)
 
     for start, ende, preis in stufen:
         if start <= uhrzeit < ende:
