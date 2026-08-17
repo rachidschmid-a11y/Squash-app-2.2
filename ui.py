@@ -27,19 +27,71 @@ def confirm_delete_karte_dialog(karte_id):
 
 @st.dialog("Eintrag wirklich löschen?")
 def confirm_delete_spiel_dialog(eintrag, karte):
-    st.warning(
-        f"Eintrag ID {eintrag['id']} ({eintrag.get('kosten', 0):.2f} €) wird gelöscht "
-        f"und dem Kartenguthaben gutgeschrieben."
-    )
+    ist_abgerechnet = eintrag.get("abgerechnet", False)
+    st.warning(f"Eintrag ID {eintrag['id']} ({eintrag.get('kosten', 0):.2f} €) wird gelöscht.")
+
+    guthaben_gutschreiben = False
+    if ist_abgerechnet:
+        st.info(
+            "Dieser Eintrag wurde bereits abgerechnet (gehörte zu einer inzwischen "
+            "abgeschlossenen Karte). Die damalige Abrechnung wird dadurch NICHT "
+            "automatisch korrigiert - nur der Eintrag selbst wird entfernt."
+        )
+        if karte:
+            guthaben_gutschreiben = st.checkbox(
+                f"Betrag zusätzlich der aktuell aktiven Karte (ID {karte['id']}) gutschreiben",
+                value=False,
+                key=f"gutschrift_{eintrag['id']}",
+            )
+        else:
+            st.caption("Keine aktive Karte vorhanden, daher keine Gutschrift möglich.")
+    else:
+        st.caption("Der Betrag wird automatisch dem aktuellen Kartenguthaben gutgeschrieben.")
+        guthaben_gutschreiben = karte is not None
+
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Ja, löschen", type="primary", width="stretch"):
-            if karte:
+            if guthaben_gutschreiben and karte:
                 alter_guthaben = karte["guthaben"]
                 neues_guthaben = alter_guthaben + eintrag.get("kosten", 0)
                 db.update_karte_guthaben(karte["id"], alter_guthaben, neues_guthaben)
             if db.delete_spiel_by_id(eintrag["id"]):
                 st.success(f"Eintrag {eintrag['id']} erfolgreich gelöscht!")
+            st.rerun()
+    with col2:
+        if st.button("Abbrechen", width="stretch"):
+            st.rerun()
+
+@st.dialog("Karte wirklich reaktivieren?")
+def confirm_reaktiviere_karte_dialog(karte_zum_reaktivieren, aktuelle_karte):
+    st.warning(
+        f"Karte ID {karte_zum_reaktivieren['id']} (bezahlt von "
+        f"{karte_zum_reaktivieren.get('bezahlt_von', 'Unbekannt')}, aktuelles Guthaben "
+        f"{karte_zum_reaktivieren['guthaben']:.2f} €) wird wieder aktiv geschaltet."
+    )
+    st.markdown(
+        "- Die automatisch erstellte Abrechnung für diese Karte wird gelöscht.\n"
+        "- Die während ihrer Laufzeit eingetragenen, bereits abgerechneten Spiele "
+        "werden wieder bearbeitbar (erscheinen wieder in der normalen Übersicht)."
+    )
+    if aktuelle_karte and aktuelle_karte["id"] != karte_zum_reaktivieren["id"]:
+        st.warning(
+            f"⚠️ Die aktuell aktive Karte (ID {aktuelle_karte['id']}, bezahlt von "
+            f"{aktuelle_karte.get('bezahlt_von', 'Unbekannt')}) wird dabei deaktiviert. "
+            f"Ihre Daten bleiben erhalten - bereits darauf eingetragene Spiele zählen "
+            f"automatisch zur nächsten aktivierten Karte."
+        )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Ja, reaktivieren", type="primary", width="stretch"):
+            if aktuelle_karte and aktuelle_karte["id"] != karte_zum_reaktivieren["id"]:
+                db.set_karte_aktiv(aktuelle_karte["id"], False)
+            db.delete_abrechnung_fuer_karte(karte_zum_reaktivieren["id"])
+            db.reaktiviere_spiele_fuer_karte(karte_zum_reaktivieren["id"])
+            if db.set_karte_aktiv(karte_zum_reaktivieren["id"], True):
+                st.success(f"Karte ID {karte_zum_reaktivieren['id']} wurde reaktiviert.")
             st.rerun()
     with col2:
         if st.button("Abbrechen", width="stretch"):
@@ -269,17 +321,31 @@ def render_abrechnung_page():
     st.divider()
     with st.expander("🗑️ Fehlerhaften Eintrag oder Karte löschen"):
         st.markdown("#### 🏸 Spiel-Session löschen")
-        if spiele:
-            df_raw = pd.DataFrame(spiele)
-            optionen = {row["id"]: f"ID {row['id']} | {pd.to_datetime(row['gespielt_am']).strftime('%d.%m.%Y')} | {row['spieler']} | {row['kosten']:.2f} €" for _, row in df_raw.iterrows()}
+        zeige_abgerechnete = st.checkbox(
+            "Auch bereits abgerechnete Einträge anzeigen (z.B. um einen Fehleintrag zu "
+            "finden, der durch eine automatische Abrechnung aus der Übersicht verschwunden ist)",
+            key="zeige_abgerechnete_spiele",
+        )
+        spiele_zum_loeschen = db.get_alle_spiele(limit=50) if zeige_abgerechnete else spiele
+
+        if spiele_zum_loeschen:
+            df_raw = pd.DataFrame(spiele_zum_loeschen)
+            optionen = {
+                row["id"]: (
+                    f"ID {row['id']} | {pd.to_datetime(row['gespielt_am']).strftime('%d.%m.%Y')} | "
+                    f"{row['spieler']} | {row['kosten']:.2f} €"
+                    + (" | ✅ abgerechnet" if row.get("abgerechnet") else "")
+                )
+                for _, row in df_raw.iterrows()
+            }
             auswahl_id = st.selectbox("Welcher Eintrag soll gelöscht werden?", list(optionen.keys()), format_func=lambda x: optionen[x], key="del_fin_id")
 
-            if st.button("Eintrag löschen & Guthaben erstatten"):
-                eintrag = next((s for s in spiele if s["id"] == auswahl_id), None)
+            if st.button("Eintrag löschen"):
+                eintrag = next((s for s in spiele_zum_loeschen if s["id"] == auswahl_id), None)
                 if eintrag:
                     confirm_delete_spiel_dialog(eintrag, karte)
         else:
-            st.info("Keine aktuellen Spiele vorhanden, die gelöscht werden könnten.")
+            st.info("Keine Einträge vorhanden, die gelöscht werden könnten.")
 
         st.divider()
         st.markdown("#### ⚠️ Aktive Karte stornieren")
@@ -289,6 +355,31 @@ def render_abrechnung_page():
                 confirm_delete_karte_dialog(karte["id"])
         else:
             st.info("Keine aktive Karte vorhanden, die gelöscht werden könnte.")
+
+        st.divider()
+        st.markdown("#### ↩️ Kürzlich abgerechnete Karte reaktivieren")
+        st.caption(
+            "Falls eine Karte versehentlich zu früh automatisch abgerechnet wurde "
+            "(z.B. durch einen Fehleintrag, der das Guthaben ins Minus gebracht hat), "
+            "kann sie hier wieder aktiv geschaltet werden."
+        )
+        inaktive_karten = db.get_inaktive_karten(limit=5)
+        if inaktive_karten:
+            reaktivieren_optionen = {
+                k["id"]: f"ID {k['id']} | bezahlt von {k.get('bezahlt_von', 'Unbekannt')} | Guthaben {k['guthaben']:.2f} €"
+                for k in inaktive_karten
+            }
+            reaktivieren_auswahl_id = st.selectbox(
+                "Welche Karte reaktivieren?",
+                list(reaktivieren_optionen.keys()),
+                format_func=lambda x: reaktivieren_optionen[x],
+                key="reaktivieren_karte_id",
+            )
+            if st.button("Karte reaktivieren"):
+                karte_zum_reaktivieren = next(k for k in inaktive_karten if k["id"] == reaktivieren_auswahl_id)
+                confirm_reaktiviere_karte_dialog(karte_zum_reaktivieren, karte)
+        else:
+            st.info("Keine abgeschlossenen Karten vorhanden.")
 
     st.divider()
     st.subheader("Kostenstatistik")

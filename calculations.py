@@ -82,6 +82,7 @@ def speichern_logik(spieler, einheiten, eingetragen_von, gespielt_am, uhrzeit, e
                 "gespielt_am": gespielt_am.isoformat(),
                 "gespielt_uhrzeit": uhrzeit.isoformat(),
                 "ermaessigt": ermaessigt,
+                "karte_id": karte["id"],
                 "abgerechnet": False
             })
             if not erfolg:
