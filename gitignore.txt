@@ -1,0 +1,13 @@
+# Geheime Zugangsdaten - NIEMALS committen!
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+
+# OS
+.DS_Store
