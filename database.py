@@ -35,6 +35,69 @@ def get_letzte_inaktive_karte():
         st.error(f"Fehler beim Laden der letzten Karte: {e}")
         return None
 
+def get_inaktive_karten(limit: int = 5):
+    """Die letzten N deaktivierten (abgeschlossenen) Karten - für die
+    'Karte reaktivieren'-Funktion, falls versehentlich zu früh/falsch
+    abgerechnet wurde."""
+    try:
+        result = _get_client().table("karte").select("*").eq("aktiv", False).order("id", desc=True).limit(limit).execute()
+        return result.data or []
+    except Exception as e:
+        st.error(f"Fehler beim Laden der letzten Karten: {e}")
+        return []
+
+def set_karte_aktiv(karte_id, aktiv: bool) -> bool:
+    """Setzt den aktiv-Status einer Karte (True oder False) - generische
+    Version von set_karte_inaktiv, u.a. für die Reaktivierung genutzt."""
+    try:
+        _get_client().table("karte").update({"aktiv": aktiv}).eq("id", karte_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Ändern des Kartenstatus: {e}")
+        return False
+
+def delete_abrechnung_fuer_karte(karte_id) -> bool:
+    """Löscht alle Abrechnungs-Zeilen einer Karte - wird beim Reaktivieren
+    einer versehentlich abgerechneten Karte gebraucht, weil die (verfrühte)
+    Abrechnung damit hinfällig wird."""
+    try:
+        _get_client().table("abrechnung").delete().eq("karte_id", karte_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Löschen der Abrechnung: {e}")
+        return False
+
+def reaktiviere_spiele_fuer_karte(karte_id) -> bool:
+    """Setzt abgerechnet=False für alle Spiele, die während der Laufzeit
+    dieser Karte eingetragen wurden (karte_id) und aktuell als abgerechnet
+    markiert sind - macht sie in der normalen Spiele-Übersicht wieder
+    sichtbar und bearbeitbar."""
+    try:
+        (
+            _get_client()
+            .table("spiele")
+            .update({"abgerechnet": False})
+            .eq("karte_id", karte_id)
+            .eq("abgerechnet", True)
+            .execute()
+        )
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Zurücksetzen der Spiele: {e}")
+        return False
+
+def get_alle_spiele(limit: int = 50):
+    """Die letzten N Spiele UNABHÄNGIG vom abgerechnet-Status - für die
+    Ansicht 'auch bereits abgerechnete Einträge anzeigen', z.B. um einen
+    Fehleintrag zu finden, der durch eine automatische Abrechnung schon aus
+    der normalen Übersicht verschwunden ist."""
+    try:
+        result = _get_client().table("spiele").select("*").order("id", desc=True).limit(limit).execute()
+        return result.data or []
+    except Exception as e:
+        st.error(f"Fehler beim Laden aller Spiele: {e}")
+        return []
+
 def get_spiele():
     try:
         result = _get_client().table("spiele").select("*").eq("abgerechnet", False).order("id", desc=True).execute()
