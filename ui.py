@@ -385,6 +385,20 @@ def render_abrechnung_page():
     st.subheader("Kostenstatistik")
     if spiele:
         df_stats = pd.DataFrame(spiele).groupby("spieler")["kosten"].sum().reset_index()
+        aktuelle_summe = df_stats["kosten"].sum()
+
+        if karte and karte.get("anfangsguthaben") is not None:
+            bezahlt_hinweis = (
+                f" (dafür bezahlt: {karte['bezahlt_betrag']:.2f} €)"
+                if karte.get("bezahlt_betrag") is not None else ""
+            )
+            st.caption(
+                f"Bezieht sich auf die aktuelle Karte: bisher {aktuelle_summe:.2f} € von "
+                f"{karte['anfangsguthaben']:.2f} € Guthaben verbraucht{bezahlt_hinweis}. "
+                f"Die Kosten pro Session werden zum vollen Guthaben-Wert abgerechnet, "
+                f"nicht zum vergünstigten bezahlten Betrag - der zählt erst in der Endabrechnung."
+            )
+
         c1, c2 = st.columns(2)
         with c1:
             vis.plot_costs_bar(df_stats)
