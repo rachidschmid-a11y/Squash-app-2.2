@@ -41,7 +41,7 @@ development, and deployment.
 
 | Area | Features |
 |---|---|
-| 💰 **Billing & Balance** | Activate a new value card (with optional bulk-purchase discount), log play sessions (with time-of-day-based pricing), automatic final settlement once the balance runs out, correct/delete faulty entries, CSV export |
+| 💰 **Billing & Balance** | Activate a new value card (with optional bulk-purchase discount), log play sessions (with time-of-day-based pricing), automatic final settlement once the balance runs out, correct/delete faulty entries (including already-settled ones), reactivate accidentally-settled cards, CSV export |
 | 🏆 **Log Matches** | Record and manage match results (sets, winner/loser), CSV export |
 | 📊 **Sports Statistics** | Win/loss ratio per player, head-to-head matrix, trend charts |
 | 👥 **Player Management** | Add players, deactivate them (reversible), or delete them permanently — no code changes required |
@@ -86,7 +86,8 @@ development, and deployment.
 ├── setup_datenbank_komplett.sql   # Complete DB schema to run once
 ├── migration.sql                  # Historical incremental migration (player management + discount)
 ├── migration_preisliste.sql       # Historical incremental migration (time-of-day column)
-└── migration_ermaessigt.sql       # Historical incremental migration (discounted tariff)
+├── migration_ermaessigt.sql       # Historical incremental migration (discounted tariff)
+└── migration_karte_reaktivierung.sql  # Historical incremental migration (card reactivation)
 ```
 
 > The individual `migration_*.sql` files document how the schema evolved
@@ -112,13 +113,11 @@ development, and deployment.
    - **Enable Data API**: **keep this enabled.** Without the Data API
      (REST interface), the app cannot access the tables at all via
      `supabase-py`.
-   - **Automatically expose new tables**: keep enabled as long as you
-     follow this guide's approach of disabling Row Level Security (see
-     Step 2) — otherwise the access roles may lack basic privileges on new
-     tables.
+   - **Automatically expose new tables**: keep enabled — otherwise the
+     access roles may lack basic privileges on new tables.
    - **Enable automatic RLS**: doesn't matter either way, since the setup
-     script in Step 2 explicitly disables Row Level Security for all
-     tables regardless (see [Security Notes](#security-notes) for why).
+     script in Step 2 explicitly enables Row Level Security for all tables
+     itself and attaches a matching policy (see [Security Notes](#security-notes) for why).
 3. After creation, open **Project Settings → API Keys** and note down:
    - **Project URL** (e.g. `https://xxxxxxxxxxxx.supabase.co`)
    - **Publishable key** (the modern successor to the classic `anon` key;
@@ -136,7 +135,8 @@ development, and deployment.
    (see below, or the file in the repository) and run it.
 
 The script creates five tables (`spieler`, `karte`, `spiele`, `abrechnung`,
-`spielergebnisse`) and disables Row Level Security on all five (see
+`spielergebnisse`) and enables Row Level Security on all five, attached to
+a policy that grants full access to the shared API key (see
 [Security Notes](#security-notes) for the reasoning).
 
 Players are **not** pre-populated via SQL — that's done conveniently after
@@ -204,6 +204,7 @@ CREATE TABLE IF NOT EXISTS spiele (
     gespielt_am DATE NOT NULL,
     gespielt_uhrzeit TIME,            -- start time, used for the pricing tier (preisliste.py)
     ermaessigt BOOLEAN DEFAULT FALSE NOT NULL,
+    karte_id INT REFERENCES karte(id), -- which card was active when this was logged (for reactivation)
     abgerechnet BOOLEAN DEFAULT FALSE NOT NULL
 );
 
@@ -237,16 +238,33 @@ CREATE TABLE IF NOT EXISTS spielergebnisse (
 -- =========================================================
 -- PERMISSIONS (Row Level Security)
 -- =========================================================
--- RLS is disabled because the app accesses the database directly with a
--- single shared API key, without individual Supabase logins - access
--- control instead happens via the password inside the app itself (see
--- auth.py). For stricter security, RLS could be left enabled with
--- targeted policies per table instead.
-ALTER TABLE spieler DISABLE ROW LEVEL SECURITY;
-ALTER TABLE karte DISABLE ROW LEVEL SECURITY;
-ALTER TABLE spiele DISABLE ROW LEVEL SECURITY;
-ALTER TABLE abrechnung DISABLE ROW LEVEL SECURITY;
-ALTER TABLE spielergebnisse DISABLE ROW LEVEL SECURITY;
+-- RLS is enabled (Supabase flags tables without it as "Critical issue:
+-- Table publicly accessible"), but attached to an open policy for the
+-- "anon" role - access behaves identically to disabled RLS, since the app
+-- only uses a single shared API key rather than individual Supabase
+-- logins anyway (actual access control happens via the password inside
+-- the app itself, see auth.py). Genuine row-level protection would
+-- require individual logins (Supabase Auth) with correspondingly tighter
+-- policies.
+ALTER TABLE spieler ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "app_zugriff" ON spieler;
+CREATE POLICY "app_zugriff" ON spieler FOR ALL TO anon USING (true) WITH CHECK (true);
+
+ALTER TABLE karte ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "app_zugriff" ON karte;
+CREATE POLICY "app_zugriff" ON karte FOR ALL TO anon USING (true) WITH CHECK (true);
+
+ALTER TABLE spiele ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "app_zugriff" ON spiele;
+CREATE POLICY "app_zugriff" ON spiele FOR ALL TO anon USING (true) WITH CHECK (true);
+
+ALTER TABLE abrechnung ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "app_zugriff" ON abrechnung;
+CREATE POLICY "app_zugriff" ON abrechnung FOR ALL TO anon USING (true) WITH CHECK (true);
+
+ALTER TABLE spielergebnisse ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "app_zugriff" ON spielergebnisse;
+CREATE POLICY "app_zugriff" ON spielergebnisse FOR ALL TO anon USING (true) WITH CHECK (true);
 
 
 -- =========================================================
@@ -370,6 +388,20 @@ page (add, deactivate/activate, delete) — not in the code. Deactivated
 players disappear from selection lists for new entries but remain visible
 in statistics (for matches already played).
 
+### Reactivating an Accidentally-Settled Card
+
+If a faulty entry pushes the balance below zero, the app automatically
+settles the card and deactivates it — corrections are no longer possible
+through the normal interface afterward, since every editing feature only
+operates on the currently active card. Under **💰 Billing & Balance →
+🗑️ Correct/Delete Faulty Entry or Card → ↩️ Reactivate a Recently Settled
+Card**, one of the last five completed cards can be switched back to
+active: the premature settlement gets deleted, its associated sessions
+become editable again, and the faulty entry can be corrected/deleted
+through the normal flow. This is made possible by the `spiele.karte_id`
+column, which records which card was active at the time each session was
+logged.
+
 ### Password Protection
 
 A single, shared password for the entire app, stored as `APP_PASSWORD` in
@@ -399,7 +431,7 @@ credentials are needed to run the tests.
 |---|---|---|
 | `spieler` | Player management | `name`, `aktiv` |
 | `karte` | Current/past value cards | `guthaben`, `bezahlt_von`, `anfangsguthaben`, `bezahlt_betrag`, `faktor`, `aktiv` |
-| `spiele` | Individual play sessions (cost splitting) | `spieler`, `einheiten`, `kosten`, `gespielt_am`, `gespielt_uhrzeit`, `ermaessigt`, `abgerechnet` |
+| `spiele` | Individual play sessions (cost splitting) | `spieler`, `einheiten`, `kosten`, `gespielt_am`, `gespielt_uhrzeit`, `ermaessigt`, `karte_id`, `abgerechnet` |
 | `abrechnung` | Final settlement history per card | `spieler`, `betrag`, `karte_id` |
 | `spielergebnisse` | Sports results | `gewinner`, `verlierer`, `satz_gewinner`, `satz_verlierer` |
 
@@ -419,13 +451,26 @@ cause.
 
 **Supabase access fails even though credentials are correct**
 Usually a permissions issue: either Row Level Security is enabled without a
-matching policy (the setup script deliberately disables RLS, see above), or
-the `anon`/`authenticated` roles are missing base privileges on the tables.
-If needed:
+matching policy, or the `anon`/`authenticated` roles are missing base
+privileges on the tables (e.g. because "Automatically expose new tables"
+was disabled when the project was created). If needed:
 ```sql
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
 ```
+
+**Supabase shows "Table publicly accessible" / "rls_disabled_in_public"**
+Supabase's built-in security linter reports this for any table without Row
+Level Security enabled. The setup script already enables RLS by default
+with a matching policy (see [Security Notes](#security-notes)) — if the
+warning still appears, a table was likely created or modified manually
+afterward. To fix, e.g. for the `karte` table:
+```sql
+ALTER TABLE karte ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "app_zugriff" ON karte;
+CREATE POLICY "app_zugriff" ON karte FOR ALL TO anon USING (true) WITH CHECK (true);
+```
+(repeat for any other affected tables).
 
 **Streamlit version causes errors**
 `requirements.txt` deliberately pins `streamlit>=1.51` (the `width`
@@ -446,14 +491,18 @@ including correct daylight-saving handling via Python's `zoneinfo`.
   shared password for a small, trusted group. For a larger or less
   trusted user base, a proper auth system (e.g. Supabase Auth) would be
   more appropriate.
-- Row Level Security is deliberately disabled (see above) — meaning the
-  Supabase API key used grants full read/write access to all tables.
-  Treat this key as sensitive accordingly (never commit it to a public
-  repository, respect `.gitignore`).
+- Row Level Security is enabled, but attached to a deliberately open
+  policy for the `anon` role (see above) — this formally satisfies
+  Supabase's security checks but doesn't change the actual protection: the
+  Supabase API key used still grants full read/write access to all
+  tables. Treat this key as sensitive accordingly (never commit it to a
+  public repository, respect `.gitignore`). Genuine row-level protection
+  would require individual Supabase logins with correspondingly tighter
+  policies.
 - It is recommended to use the modern **Publishable Key** rather than the
   classic `service_role`/Secret Key — the latter bypasses RLS entirely and
-  should never be used in a client application, even when RLS is disabled
-  anyway.
+  should never be used in a client application, even when the policy is
+  open anyway.
 
 ---
 
