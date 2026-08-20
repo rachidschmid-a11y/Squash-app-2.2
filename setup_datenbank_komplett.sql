@@ -101,17 +101,35 @@ CREATE TABLE IF NOT EXISTS spielergebnisse (
 -- =========================================================
 -- BERECHTIGUNGEN (RLS)
 -- =========================================================
--- Wie beim letzten Setup: RLS deaktiviert, da die App ohne Supabase-Login
--- direkt mit dem anon-Key zugreift (Zugriffsschutz läuft stattdessen über
--- das Passwort in der App selbst, siehe auth.py). Für strengere Sicherheit
--- könnte man stattdessen RLS aktiviert lassen und gezielte Policies je
--- Tabelle vergeben - für eine kleine, geschlossene Gruppe ist das hier aber
--- ausreichend.
-ALTER TABLE spieler DISABLE ROW LEVEL SECURITY;
-ALTER TABLE karte DISABLE ROW LEVEL SECURITY;
-ALTER TABLE spiele DISABLE ROW LEVEL SECURITY;
-ALTER TABLE abrechnung DISABLE ROW LEVEL SECURITY;
-ALTER TABLE spielergebnisse DISABLE ROW LEVEL SECURITY;
+-- RLS wird aktiviert (Supabase markiert Tabellen ohne RLS als "Critical
+-- issue: Table publicly accessible"), aber mit einer offenen Policy für
+-- die Rolle "anon" versehen - damit verhält sich der Zugriff für die App
+-- identisch wie zuvor mit deaktiviertem RLS (die App nutzt ohnehin nur
+-- einen einzigen, gemeinsamen API-Key statt individueller Supabase-Logins;
+-- der eigentliche Zugriffsschutz läuft über das Passwort in der App
+-- selbst, siehe auth.py). Für echten, zeilenweisen Schutz wären
+-- individuelle Logins (Supabase Auth) mit entsprechend engeren Policies
+-- nötig - für eine kleine, geschlossene Gruppe ist der Aufwand dafür meist
+-- nicht gerechtfertigt.
+ALTER TABLE spieler ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "app_zugriff" ON spieler;
+CREATE POLICY "app_zugriff" ON spieler FOR ALL TO anon USING (true) WITH CHECK (true);
+
+ALTER TABLE karte ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "app_zugriff" ON karte;
+CREATE POLICY "app_zugriff" ON karte FOR ALL TO anon USING (true) WITH CHECK (true);
+
+ALTER TABLE spiele ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "app_zugriff" ON spiele;
+CREATE POLICY "app_zugriff" ON spiele FOR ALL TO anon USING (true) WITH CHECK (true);
+
+ALTER TABLE abrechnung ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "app_zugriff" ON abrechnung;
+CREATE POLICY "app_zugriff" ON abrechnung FOR ALL TO anon USING (true) WITH CHECK (true);
+
+ALTER TABLE spielergebnisse ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "app_zugriff" ON spielergebnisse;
+CREATE POLICY "app_zugriff" ON spielergebnisse FOR ALL TO anon USING (true) WITH CHECK (true);
 
 
 -- =========================================================
