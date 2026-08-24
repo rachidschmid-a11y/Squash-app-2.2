@@ -113,11 +113,23 @@ def render_abrechnung_page():
 
         if letzte_schulden:
             st.caption(f"Zur Erinnerung: Das waren die Ausgleichszahlungen für die letzte Karte von **{alter_zahler}**:")
+            summe_kontrolle = 0.0
             for eintrag in letzte_schulden:
+                summe_kontrolle += eintrag["betrag"]
                 if eintrag['spieler'] != alter_zahler:
                     st.write(f"• **{eintrag['spieler']}** → **{eintrag['betrag']:.2f} €** an {alter_zahler}")
                 else:
-                    st.write(f"• *{eintrag['spieler']} (Zahler der Karte)*")
+                    st.write(f"• *{eintrag['spieler']} (Zahler der Karte)* → **{eintrag['betrag']:.2f} €** an sich selbst")
+            st.caption(f"Σ Summe zur Kontrolle: **{summe_kontrolle:.2f} €**")
+
+            df_abrechnung = pd.DataFrame(letzte_schulden)
+            st.download_button(
+                "📥 Abrechnung als CSV exportieren",
+                data=export_utils.to_csv_bytes(df_abrechnung),
+                file_name=f"abrechnung_{alter_zahler}_{date.today().isoformat()}.csv",
+                mime="text/csv",
+                key="dl_abrechnung_historie",
+            )
         else:
             st.info("Keine historischen Abrechnungsdaten gefunden.")
 
@@ -168,10 +180,14 @@ def render_abrechnung_page():
                 bezahlt_betrag = anfangsguthaben_eingabe
 
             if st.button("Karte aktivieren"):
-                letzte_karte = db.get_letzte_inaktive_karte()
-                last_guthaben = letzte_karte["guthaben"] if (letzte_karte and letzte_karte.get("guthaben") is not None) else 0
-
-                start_guthaben = anfangsguthaben_eingabe + (last_guthaben if last_guthaben < 0 else 0)
+                # Kein Übertrag eines negativen Endstands mehr: Die Session, die die
+                # vorherige Karte ins Minus gebracht hat, wurde bereits vollständig
+                # über deren automatische Abrechnung verteilt (bezahlt_betrag wird
+                # über die GESAMTE Nutzung inkl. Überzug aufgeteilt). Ein zusätzlicher
+                # Abzug hier wäre eine Doppelverrechnung, ohne dass dafür jemand
+                # explizit bezahlt. Jede neue Karte startet daher sauber bei ihrem
+                # eigenen aufgeladenen Guthaben.
+                start_guthaben = anfangsguthaben_eingabe
                 faktor = round(bezahlt_betrag / anfangsguthaben_eingabe, 6)
 
                 if db.insert_karte({
