@@ -86,6 +86,95 @@ def reaktiviere_spiele_fuer_karte(karte_id) -> bool:
         st.error(f"Fehler beim Zurücksetzen der Spiele: {e}")
         return False
 
+def get_spiele_fuer_karte(karte_id):
+    """Alle Spiele, die während der Laufzeit einer bestimmten Karte
+    eingetragen wurden (karte_id) - unabhängig vom abgerechnet-Status. Für
+    den CSV-Export der Abrechnungs-Historie: zeigt genau die Einzel-Sessions,
+    aus denen sich die Verteilung der letzten Abrechnung zusammensetzt."""
+    try:
+        result = _get_client().table("spiele").select("*").eq("karte_id", karte_id).order("id").execute()
+        return result.data or []
+    except Exception as e:
+        st.error(f"Fehler beim Laden der Spiele dieser Karte: {e}")
+        return []
+
+def get_offene_spiele_fuer_karte(karte_id):
+    """Wie get_spiele_fuer_karte, aber nur die noch NICHT abgerechneten
+    Zeilen - das ist genau die Grundlage für die Abrechnung EINER Karte
+    (abrechnung_logik), damit dabei keine 'herrenlosen' Überschuss-Zeilen
+    (karte_id = NULL) einer anderen/zukünftigen Karte versehentlich
+    mitgezählt werden."""
+    try:
+        result = (
+            _get_client()
+            .table("spiele")
+            .select("*")
+            .eq("karte_id", karte_id)
+            .eq("abgerechnet", False)
+            .execute()
+        )
+        return result.data or []
+    except Exception as e:
+        st.error(f"Fehler beim Laden der offenen Spiele dieser Karte: {e}")
+        return []
+
+def set_spiele_abgerechnet_fuer_karte(karte_id) -> bool:
+    """Markiert nur die Spiele EINER bestimmten Karte als abgerechnet -
+    bewusst nicht global, damit noch nicht zugeordnete Überschuss-Zeilen
+    (karte_id = NULL) unangetastet bleiben."""
+    try:
+        (
+            _get_client()
+            .table("spiele")
+            .update({"abgerechnet": True})
+            .eq("karte_id", karte_id)
+            .eq("abgerechnet", False)
+            .execute()
+        )
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Markieren der Spiele als abgerechnet: {e}")
+        return False
+
+def get_offene_ueberschuss_spiele():
+    """Spiele-Zeilen, die entstanden sind, weil eine Session das Guthaben
+    der damaligen Karte überschritten hat (oder weil eine Karte storniert
+    wurde, während noch offene Spiele daran hingen) - noch keiner Karte
+    zugeordnet (karte_id IS NULL) und noch nicht abgerechnet. Werden beim
+    nächsten 'Karte aktivieren' automatisch übernommen."""
+    try:
+        result = (
+            _get_client()
+            .table("spiele")
+            .select("*")
+            .is_("karte_id", "null")
+            .eq("abgerechnet", False)
+            .order("id")
+            .execute()
+        )
+        return result.data or []
+    except Exception as e:
+        st.error(f"Fehler beim Laden der offenen Überschuss-Spiele: {e}")
+        return []
+
+def claim_offene_ueberschuss_spiele(karte_id) -> bool:
+    """Ordnet alle noch nicht zugeordneten Überschuss-Spiele (karte_id IS
+    NULL) einer neu aktivierten Karte zu. Wird direkt beim Aktivieren einer
+    neuen Karte aufgerufen."""
+    try:
+        (
+            _get_client()
+            .table("spiele")
+            .update({"karte_id": karte_id})
+            .is_("karte_id", "null")
+            .eq("abgerechnet", False)
+            .execute()
+        )
+        return True
+    except Exception as e:
+        st.error(f"Fehler beim Zuordnen der Überschuss-Spiele: {e}")
+        return False
+
 def get_alle_spiele(limit: int = 50):
     """Die letzten N Spiele UNABHÄNGIG vom abgerechnet-Status - für die
     Ansicht 'auch bereits abgerechnete Einträge anzeigen', z.B. um einen

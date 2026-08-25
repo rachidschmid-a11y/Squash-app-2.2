@@ -9,6 +9,21 @@ def _parse_uhrzeit(wert):
     teile = str(wert).split(":")
     return dtime(int(teile[0]), int(teile[1]))
 
+def _verteile_cents_gleichmaessig(gesamt_cents: int, anzahl: int) -> list:
+    """
+    Verteilt gesamt_cents auf 'anzahl' Empfänger möglichst gleichmäßig
+    (größter-Rest-Verfahren), sodass die Summe exakt gesamt_cents ergibt -
+    keine Rundungsverluste, egal wie ungerade der Betrag ist.
+    """
+    if anzahl == 0:
+        return []
+    basis = gesamt_cents // anzahl
+    rest = gesamt_cents - basis * anzahl
+    verteilung = [basis] * anzahl
+    for i in range(rest):
+        verteilung[i] += 1
+    return verteilung
+
 def format_dataframe(df):
     df_clean = df.copy()
     if "gespielt_uhrzeit" in df_clean.columns and "gespielt_am" in df_clean.columns:
@@ -44,6 +59,20 @@ def speichern_logik(spieler, einheiten, eingetragen_von, gespielt_am, uhrzeit, e
     für 240 € Guthaben) bzw. in der finalen Abrechnung (siehe
     abrechnung_logik), wo der tatsächlich bezahlte Betrag verteilt wird.
 
+    Reicht das Guthaben der aktuellen Karte nicht für die volle Session,
+    wird die Session AUFGETEILT statt komplett auf die alte Karte gebucht:
+      - Der Teil, der noch ins verbleibende Guthaben passt, bleibt bei der
+        aktuellen Karte und fließt normal in deren automatische Abrechnung
+        ein (verursachergerecht anteilig auf alle Spieler der Karte verteilt).
+      - Der überschüssige Teil wird ebenfalls sofort und verursachergerecht
+        auf die beteiligten Spieler aufgeteilt, aber noch KEINER Karte
+        zugeordnet (karte_id = NULL). Er taucht direkt in der
+        Spiele-Übersicht/Kostenstatistik auf, wird aber erst beim nächsten
+        "Karte aktivieren" final der neuen Karte zugeordnet und von deren
+        Guthaben abgezogen. So landet kein Cent doppelt in einer Abrechnung:
+        die alte Karte wird nur noch auf ihre EIGENEN Einträge abgerechnet
+        (siehe abrechnung_logik), der Überschuss ist davon strikt getrennt.
+
     Gibt ein Tupel (status, nachricht) zurück, wobei status einer von
     "success", "warning" oder "error" ist:
       - "success": alles hat geklappt, Karte hat noch Guthaben
@@ -60,9 +89,13 @@ def speichern_logik(spieler, einheiten, eingetragen_von, gespielt_am, uhrzeit, e
         alter_guthaben = karte["guthaben"]
         preis_pro_einheit = preisliste.ermittle_preis(gespielt_am, uhrzeit, ermaessigt)
         kosten_fuer_spiel = round(einheiten * preis_pro_einheit, 2)
-        muss_abgerechnet_werden = alter_guthaben < kosten_fuer_spiel
-        kosten_pro_person = round(kosten_fuer_spiel / len(spieler), 2)
-        neues_guthaben = round(alter_guthaben - kosten_fuer_spiel, 2)
+
+        # Aufteilen: was die aktuelle Karte noch deckt vs. was darüber hinausgeht
+        kosten_gedeckt = round(min(kosten_fuer_spiel, max(alter_guthaben, 0)), 2)
+        kosten_ueberschuss = round(kosten_fuer_spiel - kosten_gedeckt, 2)
+        muss_abgerechnet_werden = kosten_ueberschuss > 0
+
+        neues_guthaben = round(alter_guthaben - kosten_gedeckt, 2)
 
         # Guthaben zuerst per Optimistic Locking reservieren. Schlägt das fehl,
         # hat zwischenzeitlich jemand anderes das Guthaben geändert -> Karte
@@ -71,23 +104,50 @@ def speichern_logik(spieler, einheiten, eingetragen_von, gespielt_am, uhrzeit, e
         if not guthaben_aktualisiert:
             continue
 
+        anzahl = len(spieler)
+        gedeckt_cents = (
+            _verteile_cents_gleichmaessig(round(kosten_gedeckt * 100), anzahl)
+            if kosten_gedeckt > 0 else [0] * anzahl
+        )
+        ueberschuss_cents = (
+            _verteile_cents_gleichmaessig(round(kosten_ueberschuss * 100), anzahl)
+            if kosten_ueberschuss > 0 else [0] * anzahl
+        )
+
         alle_gespeichert = True
-        for person in spieler:
-            erfolg = db.insert_spiel({
+        for i, person in enumerate(spieler):
+            basis_daten = {
                 "spieler": person,
-                "einheiten": einheiten,
-                "kosten": kosten_pro_person,
                 "eingetragen_von": eingetragen_von,
                 "eingetragen_am": datetime.now(timezone.utc).isoformat(),
                 "gespielt_am": gespielt_am.isoformat(),
                 "gespielt_uhrzeit": uhrzeit.isoformat(),
                 "ermaessigt": ermaessigt,
-                "karte_id": karte["id"],
-                "abgerechnet": False
-            })
-            if not erfolg:
-                alle_gespeichert = False
-                break
+            }
+
+            if gedeckt_cents[i] > 0:
+                erfolg = db.insert_spiel({
+                    **basis_daten,
+                    "einheiten": einheiten,
+                    "kosten": round(gedeckt_cents[i] / 100, 2),
+                    "karte_id": karte["id"],
+                    "abgerechnet": False,
+                })
+                if not erfolg:
+                    alle_gespeichert = False
+                    break
+
+            if ueberschuss_cents[i] > 0:
+                erfolg = db.insert_spiel({
+                    **basis_daten,
+                    "einheiten": 0,  # kein eigenständiges Spiel, sondern Überschuss-Anteil
+                    "kosten": round(ueberschuss_cents[i] / 100, 2),
+                    "karte_id": None,  # wird bei "Karte aktivieren" automatisch zugeordnet
+                    "abgerechnet": False,
+                })
+                if not erfolg:
+                    alle_gespeichert = False
+                    break
 
         if not alle_gespeichert:
             # Best-effort Rollback: Guthaben-Abzug rückgängig machen, damit die
@@ -98,14 +158,19 @@ def speichern_logik(spieler, einheiten, eingetragen_von, gespielt_am, uhrzeit, e
 
         if muss_abgerechnet_werden:
             abrechnung_logik(karte)
-            return "warning", "⚠️ Guthaben aufgebraucht! Das Spiel wird noch verbucht, danach wird die Karte automatisch abgerechnet."
+            return "warning", (
+                f"⚠️ Guthaben aufgebraucht! {kosten_gedeckt:.2f} € wurden noch auf dieser Karte "
+                f"verbucht, sie wird jetzt abgerechnet. Die restlichen {kosten_ueberschuss:.2f} € "
+                f"werden automatisch von der nächsten aktivierten Karte abgezogen und erscheinen "
+                f"schon jetzt in der Spiele-Übersicht."
+            )
 
         return "success", "Erfolgreich verarbeitet!"
 
     return "error", "⚠️ Es gab mehrfach gleichzeitige Änderungen am Guthaben. Bitte versuche es gleich noch einmal."
 
 def abrechnung_logik(karte):
-    daten = db.get_spiele()
+    daten = db.get_offene_spiele_fuer_karte(karte["id"])
     if len(daten) == 0:
         return
 
@@ -151,7 +216,7 @@ def abrechnung_logik(karte):
             "karte_id": karte["id"]
         })
 
-    db.set_spiele_abgerechnet()
+    db.set_spiele_abgerechnet_fuer_karte(karte["id"])
     db.set_karte_inaktiv(karte["id"])
 
 def build_dataframe():
