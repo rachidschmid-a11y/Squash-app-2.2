@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS spiele (
     gespielt_am DATE NOT NULL,
     gespielt_uhrzeit TIME,            -- Startzeit für die Preisstufe (preisliste.py)
     ermaessigt BOOLEAN DEFAULT FALSE NOT NULL,
-    karte_id INT REFERENCES karte(id), -- welche Karte war beim Eintragen aktiv (für Reaktivierung)
+    karte_id INT REFERENCES karte(id) ON DELETE SET NULL, -- welche Karte war aktiv (für Reaktivierung + Überschuss-Splitting)
     abgerechnet BOOLEAN DEFAULT FALSE NOT NULL
 );
 

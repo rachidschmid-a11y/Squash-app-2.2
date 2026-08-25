@@ -122,14 +122,17 @@ def render_abrechnung_page():
                     st.write(f"• *{eintrag['spieler']} (Zahler der Karte)* → **{eintrag['betrag']:.2f} €** an sich selbst")
             st.caption(f"Σ Summe zur Kontrolle: **{summe_kontrolle:.2f} €**")
 
-            df_abrechnung = pd.DataFrame(letzte_schulden)
-            st.download_button(
-                "📥 Abrechnung als CSV exportieren",
-                data=export_utils.to_csv_bytes(df_abrechnung),
-                file_name=f"abrechnung_{alter_zahler}_{date.today().isoformat()}.csv",
-                mime="text/csv",
-                key="dl_abrechnung_historie",
-            )
+            letzte_karte_obj = db.get_letzte_inaktive_karte()
+            spiele_fuer_abrechnung = db.get_spiele_fuer_karte(letzte_karte_obj["id"]) if letzte_karte_obj else []
+            if spiele_fuer_abrechnung:
+                df_spiele_abrechnung = calc.format_dataframe(pd.DataFrame(spiele_fuer_abrechnung))
+                st.download_button(
+                    "📥 Abrechnung als CSV exportieren (alle berücksichtigten Spiele)",
+                    data=export_utils.to_csv_bytes(df_spiele_abrechnung),
+                    file_name=f"abrechnung_spiele_{alter_zahler}_{date.today().isoformat()}.csv",
+                    mime="text/csv",
+                    key="dl_abrechnung_historie",
+                )
         else:
             st.info("Keine historischen Abrechnungsdaten gefunden.")
 
@@ -179,15 +182,27 @@ def render_abrechnung_page():
                 )
                 bezahlt_betrag = anfangsguthaben_eingabe
 
+            offene_ueberschuss = db.get_offene_ueberschuss_spiele()
+            summe_ueberschuss = round(sum(row["kosten"] for row in offene_ueberschuss), 2)
+            if offene_ueberschuss:
+                verursacher = ", ".join(sorted({row["spieler"] for row in offene_ueberschuss}))
+                st.warning(
+                    f"⚠️ Es liegen noch {summe_ueberschuss:.2f} € offener Überschuss von der "
+                    f"letzten Karte vor (verursacht von: {verursacher}). Dieser Betrag wird beim "
+                    f"Aktivieren automatisch von dieser neuen Karte abgezogen und bleibt in der "
+                    f"Spiele-Übersicht/Kostenstatistik diesen Personen zugeordnet."
+                )
+                st.caption(f"→ Startguthaben nach Abzug: {anfangsguthaben_eingabe - summe_ueberschuss:.2f} €")
+
             if st.button("Karte aktivieren"):
-                # Kein Übertrag eines negativen Endstands mehr: Die Session, die die
-                # vorherige Karte ins Minus gebracht hat, wurde bereits vollständig
-                # über deren automatische Abrechnung verteilt (bezahlt_betrag wird
-                # über die GESAMTE Nutzung inkl. Überzug aufgeteilt). Ein zusätzlicher
-                # Abzug hier wäre eine Doppelverrechnung, ohne dass dafür jemand
-                # explizit bezahlt. Jede neue Karte startet daher sauber bei ihrem
-                # eigenen aufgeladenen Guthaben.
-                start_guthaben = anfangsguthaben_eingabe
+                # Kein pauschaler Übertrag eines negativen Endstands mehr: Die alte
+                # Karte wird nur noch auf ihre EIGENEN Einträge abgerechnet. Ein
+                # etwaiger Überschuss (Session größer als das verbleibende
+                # Guthaben) wurde bereits beim Eintragen sauber abgespalten und
+                # verursachergerecht auf die beteiligten Spieler verteilt (siehe
+                # speichern_logik) - der wird hier jetzt übernommen, alles
+                # andere NICHT nochmal abgezogen.
+                start_guthaben = round(anfangsguthaben_eingabe - summe_ueberschuss, 2)
                 faktor = round(bezahlt_betrag / anfangsguthaben_eingabe, 6)
 
                 if db.insert_karte({
@@ -198,7 +213,17 @@ def render_abrechnung_page():
                     "bezahlt_betrag": bezahlt_betrag,
                     "faktor": faktor,
                 }):
-                    st.success(f"Neue Karte gestartet! Bezahlt von: {bezahlt_von}")
+                    if offene_ueberschuss:
+                        neue_karte = db.get_karte()
+                        if neue_karte:
+                            db.claim_offene_ueberschuss_spiele(neue_karte["id"])
+                        st.success(
+                            f"Neue Karte gestartet! Bezahlt von: {bezahlt_von}. "
+                            f"{summe_ueberschuss:.2f} € Überschuss wurden direkt abgezogen "
+                            f"(verursacht von: {verursacher})."
+                        )
+                    else:
+                        st.success(f"Neue Karte gestartet! Bezahlt von: {bezahlt_von}")
                     st.rerun()
 
     st.divider()
@@ -322,6 +347,12 @@ def render_abrechnung_page():
 
     spiele = db.get_spiele()
     if spiele:
+        if any(row.get("einheiten") == 0 for row in spiele):
+            st.caption(
+                "ℹ️ Zeilen mit 0 Einheiten sind keine eigenen Sessions, sondern "
+                "Überschuss-Anteile aus einer Session, die das Guthaben einer Karte "
+                "überschritten hat (siehe Warnhinweis oben bei 'Neue Karte aktivieren')."
+            )
         df_display = calc.format_dataframe(pd.DataFrame(spiele))
         st.dataframe(df_display, width="stretch")
         st.download_button(
@@ -428,7 +459,40 @@ def render_abrechnung_page():
             key="dl_kostenstatistik",
         )
     else:
-        st.info("Noch keine Daten für eine Visualisierung vorhanden.")
+        letzte_karte_obj = db.get_letzte_inaktive_karte()
+        spiele_letzte_karte = db.get_spiele_fuer_karte(letzte_karte_obj["id"]) if letzte_karte_obj else []
+        if spiele_letzte_karte:
+            st.caption(
+                f"Auf der aktuellen Karte wurde noch nicht gespielt. Hier die Kostenstatistik "
+                f"der zuletzt abgerechneten Karte (bezahlt von "
+                f"{letzte_karte_obj.get('bezahlt_von', 'Unbekannt')}):"
+            )
+            df_stats_letzte = pd.DataFrame(spiele_letzte_karte).groupby("spieler")["kosten"].sum().reset_index()
+
+            if letzte_karte_obj.get("anfangsguthaben") is not None:
+                bezahlt_hinweis = (
+                    f" (dafür bezahlt: {letzte_karte_obj['bezahlt_betrag']:.2f} €)"
+                    if letzte_karte_obj.get("bezahlt_betrag") is not None else ""
+                )
+                st.caption(
+                    f"Gesamt {df_stats_letzte['kosten'].sum():.2f} € von "
+                    f"{letzte_karte_obj['anfangsguthaben']:.2f} € Guthaben verbraucht{bezahlt_hinweis}."
+                )
+
+            c1, c2 = st.columns(2)
+            with c1:
+                vis.plot_costs_bar(df_stats_letzte)
+            with c2:
+                vis.plot_costs_pie(df_stats_letzte)
+            st.download_button(
+                "📥 Kostenstatistik (letzte Karte) als CSV exportieren",
+                data=export_utils.to_csv_bytes(df_stats_letzte),
+                file_name=f"kostenstatistik_letzte_karte_{date.today().isoformat()}.csv",
+                mime="text/csv",
+                key="dl_kostenstatistik_letzte_karte",
+            )
+        else:
+            st.info("Noch keine Daten für eine Visualisierung vorhanden.")
 
 def render_statistics_page():
     st.title("📊 Sportliche Statistiken")
