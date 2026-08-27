@@ -41,7 +41,8 @@ lokaler Entwicklung und Deployment.
 
 | Bereich | Funktionen |
 |---|---|
-| 💰 **Abrechnung & Guthaben** | Neue Wertkarte aktivieren (inkl. optionaler Vergünstigung), Spiel-Sessions eintragen (mit zeitabhängiger Preisstufe), automatische Endabrechnung bei aufgebrauchtem Guthaben, fehlerhafte Einträge korrigieren/löschen (auch bereits abgerechnete), versehentlich abgerechnete Karten reaktivieren, CSV-Export |
+| 🏠 **Dashboard** | Zentrale Startseite: Kartenguthaben, aktive Spieler, letzte Session und Match-Statistik auf einen Blick, plus Schnellzugriffe auf die anderen Seiten |
+| 💰 **Abrechnung & Guthaben** | Neue Wertkarte aktivieren (inkl. optionaler Vergünstigung), Spiel-Sessions eintragen (mit zeitabhängiger Preisstufe und Vorschau vor dem Speichern), automatische Endabrechnung bei aufgebrauchtem Guthaben, fehlerhafte Einträge korrigieren/löschen (auch bereits abgerechnete), versehentlich abgerechnete Karten reaktivieren, CSV-Export |
 | 🏆 **Matches eintragen** | Ergebnisse (Sätze, Gewinner/Verlierer) erfassen und verwalten, CSV-Export |
 | 📊 **Sportliche Statistiken** | Sieg-/Niederlagen-Quote pro Spieler, Head-to-Head-Matrix, Verlaufsdiagramme |
 | 👥 **Spielerverwaltung** | Spieler hinzufügen, deaktivieren (reversibel) oder endgültig löschen – ohne Code-Änderung |
@@ -65,6 +66,7 @@ lokaler Entwicklung und Deployment.
 .
 ├── app.py                     # Einstiegspunkt, Navigation, Login-Gate
 ├── auth.py                    # Passwortschutz
+├── dashboard.py                # Seite "🏠 Dashboard" (Startseite/Überblick)
 ├── ui.py                      # Seite "Abrechnung & Guthaben" + Statistik-Seite
 ├── player_results.py          # Seite "Matches eintragen"
 ├── spieler_verwaltung.py      # Seite "Spielerverwaltung"

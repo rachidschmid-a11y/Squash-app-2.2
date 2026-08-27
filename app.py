@@ -1,8 +1,17 @@
 import streamlit as st
+import dashboard
 import ui
 import player_results
 import spieler_verwaltung
 from auth import check_password
+
+SEITEN = [
+    "🏠 Dashboard",
+    "💰 Abrechnung & Guthaben",
+    "🏆 Matches eintragen",
+    "📊 Sportliche Statistiken",
+    "👥 Spielerverwaltung",
+]
 
 def main():
     st.set_page_config(page_title="Squash Hub", page_icon="🏸")
@@ -13,10 +22,13 @@ def main():
     st.sidebar.title("🏸 Squash Hub")
     st.sidebar.markdown("Wähle ein Modul aus:")
 
-    wahl = st.sidebar.radio(
-        "Navigation",
-        ["💰 Abrechnung & Guthaben", "🏆 Matches eintragen", "📊 Sportliche Statistiken", "👥 Spielerverwaltung"]
-    )
+    # Radio-Wert kommt aus st.session_state["nav_choice"], damit die
+    # "Schnelle Aktionen"-Buttons auf dem Dashboard die Navigation
+    # programmatisch umschalten können (siehe dashboard.py).
+    if "nav_choice" not in st.session_state:
+        st.session_state["nav_choice"] = SEITEN[0]
+
+    wahl = st.sidebar.radio("Navigation", SEITEN, key="nav_choice")
 
     st.sidebar.divider()
     st.sidebar.caption("Gekoppelt mit Supabase Live-Datenbank.")
@@ -26,7 +38,9 @@ def main():
         st.rerun()
 
     # Zentrales Modul-Routing
-    if wahl == "💰 Abrechnung & Guthaben":
+    if wahl == "🏠 Dashboard":
+        dashboard.render_dashboard_page()
+    elif wahl == "💰 Abrechnung & Guthaben":
         ui.render_abrechnung_page()
     elif wahl == "🏆 Matches eintragen":
         player_results.render_player_results_page()
