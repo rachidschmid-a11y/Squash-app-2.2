@@ -4,8 +4,8 @@
 -- Im Supabase SQL-Editor ausführen (Projekt -> SQL Editor -> New query).
 --
 -- ⚠️ ACHTUNG: Die DROP TABLE-Zeilen unten sind absichtlich auskommentiert.
--- Wenn du ein bestehendes Projekt mit echten Daten (z.B. Marlons Karte)
--- zurücksetzt, werden diese Daten UNWIDERRUFLICH gelöscht. Nur einkommentieren,
+-- Wenn du ein bestehendes Projekt mit echten Daten zurücksetzt, werden diese
+-- Daten UNWIDERRUFLICH gelöscht. Nur einkommentieren,
 -- wenn du wirklich bei null anfangen willst. Für ein brandneues, leeres
 -- Supabase-Projekt kannst du sie drin lassen (dann schlagen sie einfach
 -- fehl bzw. tun nichts, wenn die Tabellen noch nicht existieren) oder
@@ -29,14 +29,14 @@ CREATE TABLE IF NOT EXISTS spieler (
     erstellt_am TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
--- Eure bisherige Spielerliste einmalig übernehmen (passt die Namen bei
--- Bedarf an - "on conflict do nothing" macht das gefahrlos wiederholbar).
+-- Beispiel-Spieler zum Start - Namen bei Bedarf anpassen/ergänzen
+-- ("on conflict do nothing" macht das gefahrlos wiederholbar ausführbar).
 INSERT INTO spieler (name) VALUES
-    ('Jonas'),
-    ('Marlon'),
-    ('Paul'),
-    ('Vossi'),
-    ('Karsten')
+    ('Anna'),
+    ('Ben'),
+    ('Clara'),
+    ('David'),
+    ('Emma')
 ON CONFLICT (name) DO NOTHING;
 
 

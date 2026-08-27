@@ -11,14 +11,14 @@ create table if not exists public.spieler (
     erstellt_am timestamptz not null default now()
 );
 
--- Eure aktuellen Spieler (aus config.py) einmalig übernehmen.
+-- Beispiel-Spieler zum Start - Namen bei Bedarf anpassen/ergänzen.
 -- "on conflict do nothing" macht das Skript gefahrlos mehrfach ausführbar.
 insert into public.spieler (name) values
-    ('Jonas'),
-    ('Marlon'),
-    ('Paul'),
-    ('Vossi'),
-    ('Karsten')
+    ('Anna'),
+    ('Ben'),
+    ('Clara'),
+    ('David'),
+    ('Emma')
 on conflict (name) do nothing;
 
 -- 2) karte-Tabelle um die Vergünstigungs-Felder erweitern
