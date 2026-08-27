@@ -17,10 +17,17 @@ nutzt).
 
 def _wechsle_seite(seite: str):
     """Schaltet die Sidebar-Navigation programmatisch um (für die
-    'Schnelle Aktionen'-Buttons unten). Die Navigation selbst liegt in
-    app.py, das den Radio-Button-Wert aus st.session_state['nav_choice']
-    liest."""
-    st.session_state["nav_choice"] = seite
+    'Schnelle Aktionen'-Buttons unten).
+
+    Setzt bewusst NICHT direkt st.session_state['nav_choice'] - das ist der
+    Key des Radio-Widgets in app.py, und Streamlit verbietet es, den
+    session_state-Wert eines Widgets zu ändern, nachdem das Widget im
+    selben Durchlauf schon gerendert wurde (hier: die Sidebar-Navigation
+    ganz oben in app.py::main(), bevor render_dashboard_page() aufgerufen
+    wird). Stattdessen wird ein eigener 'nav_request'-Zwischenspeicher
+    gesetzt, den app.py beim nächsten Durchlauf VOR dem Radio-Widget
+    ausliest und übernimmt."""
+    st.session_state["nav_request"] = seite
     st.rerun()
 
 

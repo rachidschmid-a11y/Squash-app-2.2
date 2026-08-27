@@ -22,9 +22,15 @@ def main():
     st.sidebar.title("🏸 Squash Hub")
     st.sidebar.markdown("Wähle ein Modul aus:")
 
-    # Radio-Wert kommt aus st.session_state["nav_choice"], damit die
-    # "Schnelle Aktionen"-Buttons auf dem Dashboard die Navigation
-    # programmatisch umschalten können (siehe dashboard.py).
+    # Falls eine "Schnelle Aktion" auf dem Dashboard eine Seite angefordert
+    # hat (siehe dashboard.py::_wechsle_seite): JETZT übernehmen, bevor das
+    # Radio-Widget unten instanziert wird. Streamlit erlaubt es nicht, den
+    # session_state-Wert eines Widgets zu ändern, nachdem das Widget im
+    # selben Durchlauf schon gerendert wurde ("nav_request" ist deshalb ein
+    # eigener, nicht an ein Widget gebundener Zwischenspeicher).
+    if "nav_request" in st.session_state:
+        st.session_state["nav_choice"] = st.session_state.pop("nav_request")
+
     if "nav_choice" not in st.session_state:
         st.session_state["nav_choice"] = SEITEN[0]
 
