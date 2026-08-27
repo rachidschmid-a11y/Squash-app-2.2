@@ -192,7 +192,13 @@ def render_abrechnung_page():
                     f"Aktivieren automatisch von dieser neuen Karte abgezogen und bleibt in der "
                     f"Spiele-Übersicht/Kostenstatistik diesen Personen zugeordnet."
                 )
-                st.caption(f"→ Startguthaben nach Abzug: {anfangsguthaben_eingabe - summe_ueberschuss:.2f} €")
+                verbleibendes_startguthaben = round(anfangsguthaben_eingabe - summe_ueberschuss, 2)
+                vis.render_split_balken(
+                    verbleibendes_startguthaben,
+                    summe_ueberschuss,
+                    label_gedeckt="Verbleibt für neue Sessions",
+                    label_neu="Übernommener Überschuss",
+                )
 
             if st.button("Karte aktivieren"):
                 # Kein pauschaler Übertrag eines negativen Endstands mehr: Die alte
@@ -290,13 +296,47 @@ def render_abrechnung_page():
             f"(ohne Kartenrabatt - der wirkt erst in der Endabrechnung)"
         )
 
-        st.write("**Mitspieler auswählen:**")
-        cols = st.columns(len(aktive_spieler))
-        auswahl = [p for i, p in enumerate(aktive_spieler) if cols[i].checkbox(p, key=f"check_{p}")]
+        # st.multiselect statt einer Checkbox-Spalte pro Spieler: bei vielen
+        # Spielern auf dem Handy sonst schnell zu eng nebeneinander (siehe
+        # Übergabe-Notiz zur mobilen Darstellung). Liefert wie zuvor eine
+        # einfache Liste von Namen.
+        auswahl = st.multiselect("Mitspieler auswählen", aktive_spieler, key="fin_mitspieler")
 
         einheiten = st.number_input("Einheiten (45 Minuten)", min_value=1, max_value=20, value=1, key="fin_units")
 
-        if st.button("Spiel-Session speichern"):
+        if auswahl:
+            # --- Vorschau vor dem Speichern ------------------------------
+            # Reine Anzeige-Berechnung, damit Fehleingaben (falsche
+            # Mitspieler/Einheiten/Zeitraum) VOR dem eigentlichen Buchen
+            # auffallen. Die tatsächliche, cent-exakte Aufteilung inkl.
+            # Überschuss-Splitting passiert weiterhin ausschließlich in
+            # calc.speichern_logik() - hier wird sie nur näherungsweise
+            # nachgebildet (gleiche min()/max()-Formel wie dort), damit
+            # nichts an der echten Buchungslogik geändert werden musste.
+            st.markdown("**Vorschau:**")
+            gesamtpreis = round(einheiten * preis_pro_einheit, 2)
+            aktuelle_karte_vorschau = db.get_karte()
+            aktuelles_guthaben = aktuelle_karte_vorschau["guthaben"] if aktuelle_karte_vorschau else 0.0
+
+            p1, p2, p3 = st.columns(3)
+            p1.metric("Spieler", len(auswahl))
+            p2.metric("Gesamtpreis", f"{gesamtpreis:.2f} €")
+            p3.metric("Preis/Spieler (ca.)", f"{gesamtpreis / len(auswahl):.2f} €")
+
+            if aktuelle_karte_vorschau:
+                kosten_gedeckt = round(min(gesamtpreis, max(aktuelles_guthaben, 0)), 2)
+                kosten_ueberschuss = round(gesamtpreis - kosten_gedeckt, 2)
+                if kosten_ueberschuss > 0:
+                    vis.render_split_balken(kosten_gedeckt, kosten_ueberschuss)
+                else:
+                    neues_guthaben_vorschau = round(aktuelles_guthaben - gesamtpreis, 2)
+                    st.caption(
+                        f"Guthaben: {aktuelles_guthaben:.2f} € → **{neues_guthaben_vorschau:.2f} €** nach dieser Session"
+                    )
+            else:
+                st.warning("Keine aktive Karte vorhanden - die Session kann nicht gebucht werden.")
+
+        if st.button("💾 Session speichern"):
             if len(auswahl) == 0:
                 st.warning("Bitte Spieler auswählen")
             else:
@@ -314,7 +354,8 @@ def render_abrechnung_page():
     st.subheader("Aktueller Stand")
     karte = db.get_karte()
     if karte:
-        st.metric("Kartenguthaben", f"{karte['guthaben']:.2f} €")
+        spiele_fuer_reichweite = db.get_spiele_fuer_karte(karte["id"])
+        vis.render_karten_uebersicht(karte, spiele_fuer_reichweite)
         st.caption(f"Diese Karte wurde bezahlt von: **{karte.get('bezahlt_von', 'Unbekannt')}**")
         if karte.get("bezahlt_betrag") is not None and karte.get("anfangsguthaben") is not None:
             st.caption(
