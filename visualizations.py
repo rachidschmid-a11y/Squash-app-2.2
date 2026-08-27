@@ -1,8 +1,8 @@
 import streamlit as st
-import pandas as pd
 import plotly.express as px
 import matplotlib.pyplot as plt
 import calculations as calc
+from preise import PREISSTUFEN_WOCHENTAG
 
 def plot_costs_bar(df_stats):
     fig = px.bar(df_stats, x="spieler", y="kosten", title="Absolute Kosten pro Spieler (€)",
@@ -13,11 +13,17 @@ def plot_costs_pie(df_stats):
     fig = px.pie(df_stats, names="spieler", values="kosten", title="Kostenverteilung (%)")
     st.plotly_chart(fig, width="stretch")
 
-def render_karten_uebersicht(karte, spiele_der_karte=None):
+def render_karten_uebersicht(karte):
     """
     Detaillierte Kartenübersicht (Aufgeladen/Bezahlt/Verbraucht/Restguthaben)
-    + Fortschrittsbalken + grobe Reichweiten-Schätzung basierend auf dem
-    bisherigen Durchschnittsverbrauch pro Session.
+    + Fortschrittsbalken + grobe Reichweiten-Schätzung.
+
+    Die Reichweiten-Schätzung rechnet bewusst mit einem FESTEN Richtwert
+    (Basispreis einer regulären Wochentags-Einheit, siehe preise.py) statt
+    mit einem aus vergangenen Sessions berechneten Durchschnitt - auf
+    ausdrücklichen Wunsch, damit die Zahl unabhängig von Sonderfällen wie
+    übernommenem Alt-Überschuss immer nach der gleichen, nachvollziehbaren
+    Formel "Restguthaben ÷ Richtwert" entsteht.
 
     Reine Anzeige-Funktion - berechnet nichts, was Auswirkungen auf
     Guthaben/Abrechnung hätte (das bleibt exklusiv calculations.py
@@ -39,21 +45,16 @@ def render_karten_uebersicht(karte, spiele_der_karte=None):
         anteil = max(0.0, min(1.0, verbraucht / aufgeladen))
         st.progress(anteil, text=f"{verbraucht:.2f} € von {aufgeladen:.2f} € verbraucht")
 
-    if spiele_der_karte:
-        df = pd.DataFrame(spiele_der_karte)
-        # Durchschnitt über den eigenen Kostenanteil pro Spieler und Session
-        # (nicht über die Summe aller Mitspieler einer Session). Zeilen mit
-        # einheiten == 0 sind reine Überschuss-Anteile aus einer anderen
-        # Session (siehe calculations.py::speichern_logik) und zählen hier
-        # nicht als eigene Session mit.
-        echte_sessions = df[df["einheiten"] > 0]
-        durchschnitt = echte_sessions["kosten"].mean() if len(echte_sessions) > 0 else 0
-        if durchschnitt > 0:
-            reichweite = int(rest // durchschnitt)
-            st.caption(
-                f"📈 Reicht bei ähnlichem Verbrauch noch für ca. **{reichweite}** "
-                f"weitere Session(s) (Ø {durchschnitt:.2f} € / Session)."
-            )
+    # Fester Richtwert statt berechnetem Durchschnitt (siehe Docstring oben):
+    # Basispreis einer regulären Wochentags-Einheit (08:00-15:00 Uhr).
+    durchschnitt = PREISSTUFEN_WOCHENTAG[0][2]
+
+    if durchschnitt > 0:
+        reichweite = int(rest // durchschnitt)
+        st.caption(
+            f"📈 Reicht bei ähnlichem Verbrauch noch für ca. **{reichweite}** "
+            f"weitere Session(s) (Ø {durchschnitt:.2f} € / Session)."
+        )
 
 
 def render_split_balken(gedeckt: float, ueberschuss: float, label_gedeckt="Aktuelle Karte", label_neu="Nächste Karte"):

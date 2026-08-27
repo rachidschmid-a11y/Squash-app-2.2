@@ -354,8 +354,7 @@ def render_abrechnung_page():
     st.subheader("Aktueller Stand")
     karte = db.get_karte()
     if karte:
-        spiele_fuer_reichweite = db.get_spiele_fuer_karte(karte["id"])
-        vis.render_karten_uebersicht(karte, spiele_fuer_reichweite)
+        vis.render_karten_uebersicht(karte)
         st.caption(f"Diese Karte wurde bezahlt von: **{karte.get('bezahlt_von', 'Unbekannt')}**")
         if karte.get("bezahlt_betrag") is not None and karte.get("anfangsguthaben") is not None:
             st.caption(
