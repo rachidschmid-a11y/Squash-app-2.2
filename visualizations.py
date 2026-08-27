@@ -41,11 +41,13 @@ def render_karten_uebersicht(karte, spiele_der_karte=None):
 
     if spiele_der_karte:
         df = pd.DataFrame(spiele_der_karte)
-        # Mehrere Spieler-Zeilen derselben Session (gleicher Termin) zu einer
-        # Session-Summe zusammenfassen, um einen realistischen
-        # Durchschnittswert PRO SESSION statt pro Spieler-Anteil zu erhalten.
-        session_summen = df.groupby(["gespielt_am", "gespielt_uhrzeit"])["kosten"].sum()
-        durchschnitt = session_summen.mean() if len(session_summen) > 0 else 0
+        # Durchschnitt über den eigenen Kostenanteil pro Spieler und Session
+        # (nicht über die Summe aller Mitspieler einer Session). Zeilen mit
+        # einheiten == 0 sind reine Überschuss-Anteile aus einer anderen
+        # Session (siehe calculations.py::speichern_logik) und zählen hier
+        # nicht als eigene Session mit.
+        echte_sessions = df[df["einheiten"] > 0]
+        durchschnitt = echte_sessions["kosten"].mean() if len(echte_sessions) > 0 else 0
         if durchschnitt > 0:
             reichweite = int(rest // durchschnitt)
             st.caption(
