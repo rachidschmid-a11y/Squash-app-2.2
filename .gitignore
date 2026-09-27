@@ -9,5 +9,8 @@ __pycache__/
 venv/
 .pytest_cache/
 
+# Lokales Übergabe-/Kontextdokument für neue Chats - kein Repo-Inhalt
+uebergabe_squash_app.md
+
 # OS
 .DS_Store
