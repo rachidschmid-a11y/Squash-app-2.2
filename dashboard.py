@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import database as db
 import calculations as calc
+import visualizations as vis
 
 """
 Zentrale Startseite ("🏠 Dashboard").
@@ -56,6 +57,17 @@ def render_dashboard_page():
         st.metric("Anzahl", len(aktive_spieler))
         if aktive_spieler:
             st.caption(", ".join(aktive_spieler))
+
+    if not karte:
+        # Ohne aktive Karte ist die Abrechnung der letzten Karte das Wichtigste:
+        # wer muss wem wie viel überweisen?
+        schulden, zahler = db.get_letzte_abrechnung()
+        if schulden:
+            st.divider()
+            st.markdown("#### 💸 Letzte Abrechnung")
+            st.caption(f"Ausgleichszahlungen für die letzte Karte von **{zahler}**:")
+            vis.render_abrechnung_tabelle(schulden, zahler)
+            st.caption("Eine neue Karte startest du unter „💰 Abrechnung & Guthaben“ im Tab „🔄 Neue Karte“.")
 
     st.divider()
     st.markdown("#### 📅 Letzte Session")

@@ -42,9 +42,9 @@ development, and deployment.
 | Area | Features |
 |---|---|
 | 🏠 **Dashboard** | Central home page: card balance, active players, last session, and match stats at a glance, plus quick links to the other pages |
-| 💰 **Billing & Balance** | Activate a new value card (with optional bulk-purchase discount), log play sessions (with time-of-day-based pricing and a preview before saving), automatic final settlement once the balance runs out, correct/delete faulty entries (including already-settled ones), reactivate accidentally-settled cards, CSV export |
+| 💰 **Billing & Balance** | Activate a new value card (with optional bulk-purchase discount), log play sessions (four clear tabs; time slot, tariff and players are pre-filled from the last session, preview before saving, confirmation afterwards), automatic final settlement once the balance runs out, correct/delete faulty entries (including already-settled ones), reactivate accidentally-settled cards, CSV export |
 | 🏆 **Log Matches** | Record and manage match results (sets, winner/loser), CSV export |
-| 📊 **Sports Statistics** | Win/loss ratio per player, head-to-head matrix, trend charts |
+| 📊 **Sports Statistics** | Leaderboard, win/loss ratio per player, record and form against each opponent, head-to-head matrix, trend charts |
 | 👥 **Player Management** | Add players, deactivate them (reversible), or delete them permanently — no code changes required |
 | 🔒 **Access Control** | Simple shared password protection for the whole app |
 
@@ -67,6 +67,8 @@ development, and deployment.
 ├── app.py                     # Entry point, navigation, login gate
 ├── auth.py                    # Password protection
 ├── dashboard.py                # "🏠 Dashboard" page (home/overview)
+├── meldungen.py               # Confirmations that survive a page rerun
+├── statistik.py               # Leaderboard and per-opponent record (pure functions)
 ├── ui.py                      # "Billing & Balance" page + statistics page
 ├── player_results.py          # "Log Matches" page
 ├── spieler_verwaltung.py      # "Player Management" page
@@ -84,7 +86,8 @@ development, and deployment.
 │   └── secrets.toml.example   # Template for credentials (see below)
 ├── tests/
 │   ├── test_calculations.py
-│   └── test_preisliste.py
+│   ├── test_preisliste.py
+│   └── test_statistik.py
 ├── setup_datenbank_komplett.sql   # Complete DB schema to run once
 ├── migration.sql                  # Historical incremental migration (player management + discount)
 ├── migration_preisliste.sql       # Historical incremental migration (time-of-day column)
