@@ -77,7 +77,9 @@ def render_abrechnung_tabelle(schulden, zahler):
         }
         for eintrag in schulden
     ]
-    st.dataframe(pd.DataFrame(zeilen), hide_index=True, width="stretch")
+    # st.table statt st.dataframe: kleine, feste Tabelle ohne Hover-Werkzeugleiste, die sonst
+    # die Zeile darüber überdeckt
+    st.table(pd.DataFrame(zeilen).set_index("Spieler"))
     summe = sum(eintrag["betrag"] for eintrag in schulden)
     st.caption(f"Σ Summe zur Kontrolle: **{summe:.2f} €**")
 
