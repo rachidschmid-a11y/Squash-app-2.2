@@ -42,9 +42,9 @@ lokaler Entwicklung und Deployment.
 | Bereich | Funktionen |
 |---|---|
 | 🏠 **Dashboard** | Zentrale Startseite: Kartenguthaben, aktive Spieler, letzte Session und Match-Statistik auf einen Blick, plus Schnellzugriffe auf die anderen Seiten |
-| 💰 **Abrechnung & Guthaben** | Neue Wertkarte aktivieren (inkl. optionaler Vergünstigung), Spiel-Sessions eintragen (mit zeitabhängiger Preisstufe und Vorschau vor dem Speichern), automatische Endabrechnung bei aufgebrauchtem Guthaben, fehlerhafte Einträge korrigieren/löschen (auch bereits abgerechnete), versehentlich abgerechnete Karten reaktivieren, CSV-Export |
+| 💰 **Abrechnung & Guthaben** | Neue Wertkarte aktivieren (inkl. optionaler Vergünstigung), Spiel-Sessions eintragen (in vier übersichtlichen Tabs; Zeitraum, Tarif und Mitspieler werden aus der letzten Session vorbelegt, Vorschau vor dem Speichern, Bestätigung danach), automatische Endabrechnung bei aufgebrauchtem Guthaben, fehlerhafte Einträge korrigieren/löschen (auch bereits abgerechnete), versehentlich abgerechnete Karten reaktivieren, CSV-Export |
 | 🏆 **Matches eintragen** | Ergebnisse (Sätze, Gewinner/Verlierer) erfassen und verwalten, CSV-Export |
-| 📊 **Sportliche Statistiken** | Sieg-/Niederlagen-Quote pro Spieler, Head-to-Head-Matrix, Verlaufsdiagramme |
+| 📊 **Sportliche Statistiken** | Rangliste, Sieg-/Niederlagen-Quote pro Spieler, Bilanz und Form gegen jeden Gegner, Head-to-Head-Matrix, Verlaufsdiagramme |
 | 👥 **Spielerverwaltung** | Spieler hinzufügen, deaktivieren (reversibel) oder endgültig löschen – ohne Code-Änderung |
 | 🔒 **Zugriffsschutz** | Einfacher, gemeinsamer Passwortschutz für die ganze App |
 
@@ -67,6 +67,8 @@ lokaler Entwicklung und Deployment.
 ├── app.py                     # Einstiegspunkt, Navigation, Login-Gate
 ├── auth.py                    # Passwortschutz
 ├── dashboard.py                # Seite "🏠 Dashboard" (Startseite/Überblick)
+├── meldungen.py               # Bestätigungen, die einen Seiten-Neuaufbau überleben
+├── statistik.py               # Rangliste und Bilanz pro Gegner (reine Funktionen)
 ├── ui.py                      # Seite "Abrechnung & Guthaben" + Statistik-Seite
 ├── player_results.py          # Seite "Matches eintragen"
 ├── spieler_verwaltung.py      # Seite "Spielerverwaltung"
@@ -84,7 +86,8 @@ lokaler Entwicklung und Deployment.
 │   └── secrets.toml.example   # Vorlage für die Zugangsdaten (siehe unten)
 ├── tests/
 │   ├── test_calculations.py
-│   └── test_preisliste.py
+│   ├── test_preisliste.py
+│   └── test_statistik.py
 ├── setup_datenbank_komplett.sql   # Komplettes DB-Schema zum einmaligen Ausführen
 ├── migration.sql                  # Historische Einzel-Migration (Spielerverwaltung + Vergünstigung)
 ├── migration_preisliste.sql       # Historische Einzel-Migration (Uhrzeit-Spalte)

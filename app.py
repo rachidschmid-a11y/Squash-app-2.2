@@ -1,5 +1,6 @@
 import streamlit as st
 import dashboard
+import meldungen
 import ui
 import player_results
 import spieler_verwaltung
@@ -42,6 +43,10 @@ def main():
     if st.sidebar.button("🚪 Abmelden"):
         st.session_state["authenticated"] = False
         st.rerun()
+
+    # Meldungen aus der vorherigen Aktion (z.B. "Session gespeichert"), die einen
+    # st.rerun() überleben müssen (siehe meldungen.py)
+    meldungen.zeige()
 
     # Zentrales Modul-Routing
     if wahl == "🏠 Dashboard":
