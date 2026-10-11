@@ -222,10 +222,30 @@ def _tab_session(aktive_spieler, karte):
     with col2:
         gespielt_am = st.date_input("Gespielt am", jetzt_berlin.date(), key="fin_date")
 
+    # Welche Preisliste gilt? Vorbelegt nach Datum (Samstag/Sonntag/Feiertag =
+    # Wochenend-Liste), aber frei wählbar: Der Platzwart gewährt gelegentlich
+    # auch am Wochenende die Wochentag-Preise inkl. Studententarif, die die
+    # Standard-Preisliste dort nicht kennt.
     ist_wochenende = preisliste.ist_wochenend_tarif(gespielt_am)
+    liste_optionen = ["Wochentag (Mo–Fr)", "Wochenende / Feiertag"]
+    liste_gewaehlt = st.radio(
+        "Preisliste",
+        liste_optionen,
+        index=1 if ist_wochenende else 0,
+        horizontal=True,
+        key=f"fin_liste_{'we' if ist_wochenende else 'wt'}",
+    )
+    wochenend_liste = liste_gewaehlt == liste_optionen[1]
+    if wochenend_liste != ist_wochenende:
+        st.caption(
+            "ℹ️ Abweichend vom Datum: Es gilt die "
+            + ("Wochenend-" if wochenend_liste else "Wochentag-")
+            + "Preisliste (z.B. wegen einer Vergünstigung vom Platzwart)."
+        )
+
     ermaessigt = False
-    if ist_wochenende:
-        st.caption("Am Wochenende/Feiertag gibt es laut Preisliste keinen ermäßigten Tarif.")
+    if wochenend_liste:
+        st.caption("Die Wochenend-Preisliste kennt laut Betreiber keinen ermäßigten Tarif.")
     else:
         # Vorbelegt mit dem Tarif der letzten Wochentags-Session
         ermaessigt = st.checkbox(
@@ -234,7 +254,7 @@ def _tab_session(aktive_spieler, karte):
             key="fin_ermaessigt",
         )
 
-    kombi_stufen = preisliste.beide_preise_fuer_datum(gespielt_am)
+    kombi_stufen = preisliste.beide_preise_fuer_liste(wochenend_liste)
     zeitraum_optionen = {}
     for start, ende, preis_regulaer, preis_erm in kombi_stufen:
         zeit_label = f"{start.strftime('%H:%M')}–{ende.strftime('%H:%M')} Uhr"
@@ -256,12 +276,12 @@ def _tab_session(aktive_spieler, karte):
     if default_index is None:
         default_index = 0
 
-    # Eigener Key je nachdem ob Wochentag/Wochenende, damit ein
-    # Datumswechsel zwischen den beiden Tarif-Sets nicht zu einer
+    # Eigener Key je nachdem ob Wochentag- oder Wochenend-Liste gewählt ist, damit ein
+    # Wechsel zwischen den beiden Tarif-Sets nicht zu einer
     # ungültigen alten Auswahl führt. Das Umschalten der
     # "ermäßigt"-Checkbox ändert die Label-Texte nicht (nur den intern
     # zugeordneten Preis), braucht also keinen eigenen Key.
-    zeitraum_key = f"fin_zeitraum_{'we' if ist_wochenende else 'wt'}"
+    zeitraum_key = f"fin_zeitraum_{'we' if wochenend_liste else 'wt'}"
     auswahl_label = st.radio(
         "In welchem Zeitraum wurde gespielt?",
         zeitraum_labels,
@@ -284,7 +304,7 @@ def _tab_session(aktive_spieler, karte):
             args=(vorgaben["mitspieler"],),
             key="btn_wie_letzte_session",
         )
-    auswahl = st.multiselect("Mitspieler auswählen", aktive_spieler, key="fin_mitspieler")
+    auswahl = st.multiselect("Mitspieler auswählen", aktive_spieler, key="fin_mitspieler", placeholder="Spieler auswählen")
 
     # kein value=...: der Startwert ist min_value (1), und fin_units wird nach dem Speichern per session_state zurückgesetzt
     einheiten = st.number_input("Einheiten (45 Minuten)", min_value=1, max_value=20, key="fin_units")
@@ -319,7 +339,9 @@ def _tab_session(aktive_spieler, karte):
         st.caption("Wähle mindestens einen Mitspieler aus, um die Session zu speichern.")
 
     if st.button("💾 Session speichern", type="primary", disabled=not auswahl, key="btn_session_speichern"):
-        status, msg = calc.speichern_logik(auswahl, einheiten, eingetragen_von, gespielt_am, uhrzeit, ermaessigt)
+        status, msg = calc.speichern_logik(
+            auswahl, einheiten, eingetragen_von, gespielt_am, uhrzeit, ermaessigt, wochenend_liste=wochenend_liste
+        )
         if status == "error":
             st.error(msg)
         else:
