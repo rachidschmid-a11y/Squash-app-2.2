@@ -107,7 +107,7 @@ def beide_preise_fuer_datum(datum: date) -> list:
 
 def zeitraum_label(datum: date, uhrzeit: time) -> str:
     """
-    Gibt den vollen Zeitraum-Text (z.B. "16:45–21:00 Uhr") für eine
+    Gibt den vollen Zeitraum-Text (z.B. "15:00–21:00 Uhr") für eine
     gespeicherte Start-Uhrzeit zurück - für Anzeige/CSV-Export der
     Spiele-Übersicht. Die Zeitgrenzen sind unabhängig vom ermäßigten Tarif
     (nur die Preise unterscheiden sich), daher wird hier immer die reguläre
