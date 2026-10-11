@@ -200,6 +200,47 @@ def test_speichern_logik_ermaessigter_tarif(monkeypatch):
     assert inserts[0]["ermaessigt"] is True
 
 
+def _speichern_mit_preisliste(monkeypatch, tag, uhrzeit, **kwargs):
+    karte = {"id": 1, "guthaben": 100.0}
+    updates, inserts = [], []
+    monkeypatch.setattr(calc.db, "get_karte", lambda: karte)
+    monkeypatch.setattr(calc.db, "update_karte_guthaben", lambda kid, alt, neu: updates.append((kid, alt, neu)) or True)
+    monkeypatch.setattr(calc.db, "insert_spiel", lambda data: inserts.append(data) or True)
+    status, _msg = calc.speichern_logik(["Anna", "Clara"], 2, "Anna", tag, uhrzeit, **kwargs)
+    return status, updates, inserts
+
+
+def test_speichern_logik_wochentag_preisliste_an_einem_wochenende(monkeypatch):
+    """Platzwart gewährt am Sonntag die Wochentag-Preise inkl. Studententarif:
+    16:45 Uhr ermäßigt = 19 € pro Einheit (nach Datum wären es 19 € Wochenend-Preis
+    für 10-20 Uhr, aber ohne Studententarif - hier zählt die gewählte Liste)."""
+    status, updates, inserts = _speichern_mit_preisliste(
+        monkeypatch, SAMSTAG, time(16, 45), ermaessigt=True, wochenend_liste=False)
+    assert status == "success"
+    assert updates[0][1] - updates[0][2] == pytest.approx(2 * 19.00, abs=1e-9)
+    assert inserts[0]["ermaessigt"] is True
+    assert inserts[0]["gespielt_uhrzeit"] == "16:45:00"
+
+    # reguläre Wochentag-Liste am Wochenende: 21 € statt der Wochenend-Preises 19 €
+    _status, updates, _inserts = _speichern_mit_preisliste(
+        monkeypatch, SAMSTAG, time(16, 45), wochenend_liste=False)
+    assert updates[0][1] - updates[0][2] == pytest.approx(2 * 21.00, abs=1e-9)
+
+
+def test_speichern_logik_wochenend_preisliste_an_einem_werktag(monkeypatch):
+    _status, updates, _inserts = _speichern_mit_preisliste(
+        monkeypatch, MONTAG, time(8, 0), wochenend_liste=True)
+    assert updates[0][1] - updates[0][2] == pytest.approx(2 * 17.00, abs=1e-9)
+
+
+def test_speichern_logik_ohne_listenwahl_bleibt_es_beim_datum(monkeypatch):
+    """Standardverhalten unverändert: ohne wochenend_liste entscheidet das Datum."""
+    _s, updates_sa, _i = _speichern_mit_preisliste(monkeypatch, SAMSTAG, time(10, 0))
+    _s, updates_mo, _i = _speichern_mit_preisliste(monkeypatch, MONTAG, time(10, 0))
+    assert updates_sa[0][1] - updates_sa[0][2] == pytest.approx(2 * 19.00, abs=1e-9)   # Wochenend-Liste 10-20 Uhr
+    assert updates_mo[0][1] - updates_mo[0][2] == pytest.approx(2 * 19.00, abs=1e-9)   # Wochentag-Liste 08-15 Uhr
+
+
 def test_speichern_logik_funktioniert_auch_ohne_faktor_feld_auf_der_karte(monkeypatch):
     """Die Karte braucht für's Speichern kein 'faktor'-Feld mehr, da der
     Faktor hier gar nicht mehr gelesen wird (nur noch in abrechnung_logik)."""
