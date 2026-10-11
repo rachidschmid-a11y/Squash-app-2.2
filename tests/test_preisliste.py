@@ -13,14 +13,14 @@ def test_wochentag_preisstufen():
 
 def test_wochenend_preisstufen():
     samstag = date(2026, 8, 1)
-    assert pl.ermittle_preis(samstag, time(9, 0)) == 17.00
-    assert pl.ermittle_preis(samstag, time(11, 0)) == 19.00
+    assert pl.ermittle_preis(samstag, time(9, 0)) == 18.00
+    assert pl.ermittle_preis(samstag, time(11, 0)) == 20.00
 
 
 def test_feiertag_zaehlt_als_wochenende():
     tag_der_arbeit = date(2026, 5, 1)  # Freitag, gesetzlicher Feiertag
     assert pl.ist_wochenend_tarif(tag_der_arbeit) is True
-    assert pl.ermittle_preis(tag_der_arbeit, time(11, 0)) == 19.00
+    assert pl.ermittle_preis(tag_der_arbeit, time(11, 0)) == 20.00
 
 
 def test_normaler_werktag_ist_kein_wochenendtarif():
@@ -57,7 +57,7 @@ def test_ermaessigt_wird_am_wochenende_ignoriert():
     ermaessigt=True darf dort keinen Unterschied machen."""
     samstag = date(2026, 8, 1)
     assert pl.ermittle_preis(samstag, time(11, 0), ermaessigt=True) == pl.ermittle_preis(samstag, time(11, 0), ermaessigt=False)
-    assert pl.ermittle_preis(samstag, time(11, 0), ermaessigt=True) == 19.00
+    assert pl.ermittle_preis(samstag, time(11, 0), ermaessigt=True) == 20.00
 
 
 def test_preisstufen_fuer_datum_ermaessigt():
@@ -78,8 +78,8 @@ def test_preis_nach_gewaehlter_liste_unabhaengig_vom_datum():
     assert pl.ermittle_preis_fuer_liste(False, time(16, 45), ermaessigt=True) == 19.00
     assert pl.ermittle_preis_fuer_liste(False, time(16, 45), ermaessigt=False) == 21.00
     # Wochenend-Liste: kein ermäßigter Tarif
-    assert pl.ermittle_preis_fuer_liste(True, time(10, 0), ermaessigt=True) == 19.00
-    assert pl.ermittle_preis_fuer_liste(True, time(8, 0)) == 17.00
+    assert pl.ermittle_preis_fuer_liste(True, time(10, 0), ermaessigt=True) == 20.00
+    assert pl.ermittle_preis_fuer_liste(True, time(8, 0)) == 18.00
 
 
 def test_datumsfunktionen_liefern_wie_bisher_dasselbe_wie_die_listenfunktionen():
