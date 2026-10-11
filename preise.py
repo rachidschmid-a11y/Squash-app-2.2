@@ -31,6 +31,6 @@ PREISSTUFEN_WOCHENTAG_ERMAESSIGT = [
 # Samstag, Sonntag und gesetzliche Feiertage (Berlin) - lt. Preisliste gibt
 # es hier KEINEN ermäßigten Tarif, nur den einen (regulären) Preis.
 PREISSTUFEN_WOCHENENDE = [
-    (time(8, 0), time(10, 0), 17.00),
-    (time(10, 0), time(20, 0), 19.00),
+    (time(8, 0), time(10, 0), 18.00),
+    (time(10, 0), time(20, 0), 20.00),
 ]
