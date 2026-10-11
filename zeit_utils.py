@@ -18,4 +18,8 @@ def to_berlin_time_str(series: pd.Series, fmt: str = "%d.%m.%Y %H:%M") -> pd.Ser
     enthalten (z.B. "...+00:00" von Postgres), als auch mit "naiven"
     Zeitstempeln ohne Offset (die dann als UTC interpretiert werden).
     """
-    return pd.to_datetime(series, utc=True).dt.tz_convert(BERLIN_TZ).dt.strftime(fmt)
+    # format="ISO8601": ohne diese Angabe leitet pandas das Format aus der
+    # ersten Zeile ab und bricht ab, sobald eine andere Zeile ein leicht
+    # abweichendes Format hat (z.B. ohne Sekundenbruchteile, wie es bei per
+    # SQL nachgetragenen Zeilen vorkommen kann).
+    return pd.to_datetime(series, utc=True, format="ISO8601").dt.tz_convert(BERLIN_TZ).dt.strftime(fmt)

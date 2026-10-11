@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import plotly.express as px
 import matplotlib.pyplot as plt
 import calculations as calc
@@ -35,11 +36,20 @@ def render_karten_uebersicht(karte):
     rest = karte["guthaben"]
     verbraucht = round(aufgeladen - rest, 2) if aufgeladen is not None else None
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Aufgeladen", f"{aufgeladen:.2f} €" if aufgeladen is not None else "–")
-    c2.metric("Bezahlt", f"{bezahlt:.2f} €" if bezahlt is not None else "–")
-    c3.metric("Verbraucht", f"{verbraucht:.2f} €" if verbraucht is not None else "–")
-    c4.metric("Restguthaben", f"{rest:.2f} €")
+    # Schmale Tabelle (Bezeichnung | Betrag) statt vier einzelner Kennzahlen: auf dem Handy stapeln
+    # sich st.columns untereinander und würden einen ganzen Bildschirm füllen, und eine Tabelle mit
+    # vier Spalten nebeneinander wäre auf 390 Pixel Breite zu breit.
+    def betrag(wert):
+        return f"{wert:.2f} €" if wert is not None else "–"
+
+    st.markdown(
+        "| Kartenübersicht | Betrag |\n"
+        "|:--|--:|\n"
+        f"| Aufgeladen | {betrag(aufgeladen)} |\n"
+        f"| Bezahlt | {betrag(bezahlt)} |\n"
+        f"| Verbraucht | {betrag(verbraucht)} |\n"
+        f"| **Restguthaben** | **{rest:.2f} €** |"
+    )
 
     if aufgeladen and aufgeladen > 0:
         anteil = max(0.0, min(1.0, verbraucht / aufgeladen))
@@ -55,6 +65,27 @@ def render_karten_uebersicht(karte):
             f"📈 Reicht bei ähnlichem Verbrauch noch für ca. **{reichweite}** "
             f"weitere Session(s) (Ø {durchschnitt:.2f} € / Session)."
         )
+
+
+def render_abrechnung_tabelle(schulden, zahler):
+    """
+    Zeigt eine Abrechnung als Tabelle "Wer zahlt wie viel an wen" inkl.
+    Summenzeile zur Kontrolle (die Summe entspricht dem bezahlten Betrag der
+    Karte). Reine Anzeige der bereits gespeicherten Abrechnungszeilen.
+    """
+    zeilen = [
+        {
+            "Spieler": eintrag["spieler"],
+            "Betrag": f"{eintrag['betrag']:.2f} €",
+            "Zahlt an": zahler if eintrag["spieler"] != zahler else "– (hat die Karte bezahlt)",
+        }
+        for eintrag in schulden
+    ]
+    # st.table statt st.dataframe: kleine, feste Tabelle ohne Hover-Werkzeugleiste, die sonst
+    # die Zeile darüber überdeckt
+    st.table(pd.DataFrame(zeilen).set_index("Spieler"))
+    summe = sum(eintrag["betrag"] for eintrag in schulden)
+    st.caption(f"Σ Summe zur Kontrolle: **{summe:.2f} €**")
 
 
 def render_split_balken(gedeckt: float, ueberschuss: float, label_gedeckt="Aktuelle Karte", label_neu="Nächste Karte"):

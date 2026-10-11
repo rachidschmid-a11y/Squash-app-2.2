@@ -43,7 +43,7 @@ def format_dataframe(df):
     cols = [c for c in cfg.ORDERED_COLUMNS if c in df_clean.columns]
     return df_clean[cols]
 
-def speichern_logik(spieler, einheiten, eingetragen_von, gespielt_am, uhrzeit, ermaessigt=False, max_retries=3):
+def speichern_logik(spieler, einheiten, eingetragen_von, gespielt_am, uhrzeit, ermaessigt=False, max_retries=3, wochenend_liste=None):
     """
     Speichert eine neue Spiel-Session und zieht die Kosten vom Kartenguthaben ab.
 
@@ -51,6 +51,11 @@ def speichern_logik(spieler, einheiten, eingetragen_von, gespielt_am, uhrzeit, e
     (siehe preisliste.py), abhängig von Wochentag/Feiertag, der
     Start-Uhrzeit der Session und ob der ermäßigte Schüler-/Studenten-Tarif
     gilt (nur an Wochentagen verfügbar).
+
+    Mit wochenend_liste=None (Standard) ergibt sich die Preisliste aus dem
+    Datum (Wochenende/Feiertag oder Mo-Fr). Mit True/False lässt sich die
+    Liste ausdrücklich vorgeben, z.B. wenn der Platzwart an einem Wochenende
+    die Wochentag-Preise (inkl. Studententarif) gewährt.
 
     WICHTIG: Der individuelle Rabatt-Faktor der Karte (Vergünstigung) wird
     HIER NICHT angewendet. Laut Abgleich mit den echten Kartenbuchungen des
@@ -87,7 +92,10 @@ def speichern_logik(spieler, einheiten, eingetragen_von, gespielt_am, uhrzeit, e
             return "error", "Keine aktive Karte vorhanden"
 
         alter_guthaben = karte["guthaben"]
-        preis_pro_einheit = preisliste.ermittle_preis(gespielt_am, uhrzeit, ermaessigt)
+        nutze_wochenend_liste = (
+            preisliste.ist_wochenend_tarif(gespielt_am) if wochenend_liste is None else wochenend_liste
+        )
+        preis_pro_einheit = preisliste.ermittle_preis_fuer_liste(nutze_wochenend_liste, uhrzeit, ermaessigt)
         kosten_fuer_spiel = round(einheiten * preis_pro_einheit, 2)
 
         # Aufteilen: was die aktuelle Karte noch deckt vs. was darüber hinausgeht

@@ -41,10 +41,10 @@ development, and deployment.
 
 | Area | Features |
 |---|---|
-| 🏠 **Dashboard** | Central home page: card balance, active players, last session, and match stats at a glance, plus quick links to the other pages |
-| 💰 **Billing & Balance** | Activate a new value card (with optional bulk-purchase discount), log play sessions (with time-of-day-based pricing and a preview before saving), automatic final settlement once the balance runs out, correct/delete faulty entries (including already-settled ones), reactivate accidentally-settled cards, CSV export |
+| 🏠 **Dashboard** | Central home page: card balance, active players, last session, and match stats at a glance. If no card is active, it shows the settlement (who pays whom) right away. Plus quick links to the other pages |
+| 💰 **Billing & Balance** | Four tabs, the remaining balance is always shown at the top: **➕ Session** (log a game: price list (weekday or weekend) preselected by date but freely selectable, e.g. when the court attendant grants weekday prices on a weekend; time slot and tariff pre-filled from the last session, players via dropdown or the “Same as last session” button, preview before saving, confirmation afterwards) · **💳 Balance** (card overview, graphical cost statistics, all entries, CSV export) · **🔄 New Card** (last settlement as a table, activate a new value card incl. optional bulk-purchase discount, only while no other card is active) · **🛠️ Correction** (delete entries, cancel the active card, reactivate a settled card). When the balance no longer suffices, the app settles the card automatically |
 | 🏆 **Log Matches** | Record and manage match results (sets, winner/loser), CSV export |
-| 📊 **Sports Statistics** | Win/loss ratio per player, head-to-head matrix, trend charts |
+| 📊 **Sports Statistics** | Leaderboard, win/loss ratio per player, record and form against each opponent, head-to-head matrix, trend charts |
 | 👥 **Player Management** | Add players, deactivate them (reversible), or delete them permanently — no code changes required |
 | 🔒 **Access Control** | Simple shared password protection for the whole app |
 
@@ -67,7 +67,9 @@ development, and deployment.
 ├── app.py                     # Entry point, navigation, login gate
 ├── auth.py                    # Password protection
 ├── dashboard.py                # "🏠 Dashboard" page (home/overview)
-├── ui.py                      # "Billing & Balance" page + statistics page
+├── meldungen.py               # Confirmations that survive a page rerun
+├── statistik.py               # Leaderboard and per-opponent record (pure functions)
+├── ui.py                      # "Billing & Balance" page (four tabs) + statistics page
 ├── player_results.py          # "Log Matches" page
 ├── spieler_verwaltung.py      # "Player Management" page
 ├── calculations.py            # Core logic: costs, balance, settlement, statistics
@@ -84,7 +86,8 @@ development, and deployment.
 │   └── secrets.toml.example   # Template for credentials (see below)
 ├── tests/
 │   ├── test_calculations.py
-│   └── test_preisliste.py
+│   ├── test_preisliste.py
+│   └── test_statistik.py
 ├── setup_datenbank_komplett.sql   # Complete DB schema to run once
 ├── migration.sql                  # Historical incremental migration (player management + discount)
 ├── migration_preisliste.sql       # Historical incremental migration (time-of-day column)
@@ -396,7 +399,7 @@ If a faulty entry pushes the balance below zero, the app automatically
 settles the card and deactivates it — corrections are no longer possible
 through the normal interface afterward, since every editing feature only
 operates on the currently active card. Under **💰 Billing & Balance →
-🗑️ Correct/Delete Faulty Entry or Card → ↩️ Reactivate a Recently Settled
+🛠️ Correction tab → ↩️ Reactivate a Recently Settled
 Card**, one of the last five completed cards can be switched back to
 active: the premature settlement gets deleted, its associated sessions
 become editable again, and the faulty entry can be corrected/deleted

@@ -41,10 +41,10 @@ lokaler Entwicklung und Deployment.
 
 | Bereich | Funktionen |
 |---|---|
-| 🏠 **Dashboard** | Zentrale Startseite: Kartenguthaben, aktive Spieler, letzte Session und Match-Statistik auf einen Blick, plus Schnellzugriffe auf die anderen Seiten |
-| 💰 **Abrechnung & Guthaben** | Neue Wertkarte aktivieren (inkl. optionaler Vergünstigung), Spiel-Sessions eintragen (mit zeitabhängiger Preisstufe und Vorschau vor dem Speichern), automatische Endabrechnung bei aufgebrauchtem Guthaben, fehlerhafte Einträge korrigieren/löschen (auch bereits abgerechnete), versehentlich abgerechnete Karten reaktivieren, CSV-Export |
+| 🏠 **Dashboard** | Zentrale Startseite: Kartenguthaben, aktive Spieler, letzte Session und Match-Statistik auf einen Blick. Ist keine Karte aktiv, steht dort direkt die Abrechnung („Wer zahlt wem“). Dazu Schnellzugriffe auf die anderen Seiten |
+| 💰 **Abrechnung & Guthaben** | Vier Tabs, das Restguthaben steht immer oben: **➕ Session** (Spiel eintragen: Preisliste (Wochentag oder Wochenende) nach Datum vorgewählt, aber frei wählbar, z.B. wenn der Platzwart am Wochenende die Wochentag-Preise gewährt; Zeitraum und Tarif aus der letzten Session vorbelegt, Mitspieler per Dropdown oder mit dem Knopf „Wie letzte Session“, Vorschau vor dem Speichern, Bestätigung danach) · **💳 Stand** (Kartenübersicht, grafische Kostenstatistik, alle Einträge, CSV-Export) · **🔄 Neue Karte** (letzte Abrechnung als Tabelle, neue Wertkarte inkl. optionaler Vergünstigung aktivieren, nur solange keine andere Karte aktiv ist) · **🛠️ Korrektur** (Einträge löschen, aktive Karte stornieren, abgerechnete Karte reaktivieren). Reicht das Guthaben nicht mehr, rechnet die App die Karte automatisch ab |
 | 🏆 **Matches eintragen** | Ergebnisse (Sätze, Gewinner/Verlierer) erfassen und verwalten, CSV-Export |
-| 📊 **Sportliche Statistiken** | Sieg-/Niederlagen-Quote pro Spieler, Head-to-Head-Matrix, Verlaufsdiagramme |
+| 📊 **Sportliche Statistiken** | Rangliste, Sieg-/Niederlagen-Quote pro Spieler, Bilanz und Form gegen jeden Gegner, Head-to-Head-Matrix, Verlaufsdiagramme |
 | 👥 **Spielerverwaltung** | Spieler hinzufügen, deaktivieren (reversibel) oder endgültig löschen – ohne Code-Änderung |
 | 🔒 **Zugriffsschutz** | Einfacher, gemeinsamer Passwortschutz für die ganze App |
 
@@ -67,7 +67,9 @@ lokaler Entwicklung und Deployment.
 ├── app.py                     # Einstiegspunkt, Navigation, Login-Gate
 ├── auth.py                    # Passwortschutz
 ├── dashboard.py                # Seite "🏠 Dashboard" (Startseite/Überblick)
-├── ui.py                      # Seite "Abrechnung & Guthaben" + Statistik-Seite
+├── meldungen.py               # Bestätigungen, die einen Seiten-Neuaufbau überleben
+├── statistik.py               # Rangliste und Bilanz pro Gegner (reine Funktionen)
+├── ui.py                      # Seite "Abrechnung & Guthaben" (vier Tabs) + Statistik-Seite
 ├── player_results.py          # Seite "Matches eintragen"
 ├── spieler_verwaltung.py      # Seite "Spielerverwaltung"
 ├── calculations.py            # Kernlogik: Kosten, Guthaben, Abrechnung, Statistik
@@ -84,7 +86,8 @@ lokaler Entwicklung und Deployment.
 │   └── secrets.toml.example   # Vorlage für die Zugangsdaten (siehe unten)
 ├── tests/
 │   ├── test_calculations.py
-│   └── test_preisliste.py
+│   ├── test_preisliste.py
+│   └── test_statistik.py
 ├── setup_datenbank_komplett.sql   # Komplettes DB-Schema zum einmaligen Ausführen
 ├── migration.sql                  # Historische Einzel-Migration (Spielerverwaltung + Vergünstigung)
 ├── migration_preisliste.sql       # Historische Einzel-Migration (Uhrzeit-Spalte)
@@ -369,7 +372,7 @@ Die Berechnungslogik (`preisliste.py`) ermittelt daraus automatisch, welche
 Preisstufe für ein gegebenes Datum/Uhrzeit gilt, inklusive automatischer
 Erkennung gesetzlicher Feiertage in Berlin (bewegliche Feiertage werden
 über die Gauß'sche Osterformel berechnet – keine externe Abhängigkeit
-nötig). Für einen anderen Bundesland-Feiertagskalender müsste die Liste in
+nötig). Welche der beiden Listen (Wochentag/Wochenende) beim Eintragen gilt, ergibt sich vorbelegt aus dem Datum und lässt sich im Formular umstellen. Für einen anderen Bundesland-Feiertagskalender müsste die Liste in
 `preisliste.py` (`_berliner_feiertage`) angepasst werden.
 
 ### Kartenrabatt / Vergünstigung
@@ -397,7 +400,7 @@ Rutscht das Guthaben durch einen (fehlerhaften) Eintrag ins Minus, rechnet
 die App die Karte automatisch ab und deaktiviert sie – Korrekturen daran
 sind über die normale Oberfläche danach nicht mehr möglich, da alle
 Bearbeitungsfunktionen nur auf die aktuell aktive Karte zugreifen. Über
-**💰 Abrechnung & Guthaben → 🗑️ Fehlerhaften Eintrag oder Karte löschen →
+**💰 Abrechnung & Guthaben → Tab 🛠️ Korrektur →
 ↩️ Kürzlich abgerechnete Karte reaktivieren** lässt sich eine der letzten
 fünf abgeschlossenen Karten wieder aktiv schalten: Die verfrühte Abrechnung
 wird gelöscht, die zugehörigen Spiele werden wieder bearbeitbar, und der

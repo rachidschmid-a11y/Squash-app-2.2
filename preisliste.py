@@ -61,34 +61,48 @@ def ist_wochenend_tarif(datum: date) -> bool:
     return datum in _berliner_feiertage(datum.year)
 
 
-def preisstufen_fuer_datum(datum: date, ermaessigt: bool = False) -> list:
+def preisstufen_fuer_liste(wochenend_liste: bool, ermaessigt: bool = False) -> list:
     """
-    Gibt die Liste der Preisstufen (start, ende, preis) zurück, die für
-    dieses Datum (und ggf. den ermäßigten Schüler-/Studenten-Tarif) gelten.
+    Gibt die Liste der Preisstufen (start, ende, preis) für die gewählte
+    Preisliste zurück: Wochenende/Feiertag (True) oder Montag bis Freitag
+    (False, optional mit dem ermäßigten Schüler-/Studenten-Tarif).
 
-    Am Wochenende/Feiertag gibt es laut Preisliste des Betreibers keinen
+    Die Wochenend-Liste kennt laut Preisliste des Betreibers keinen
     ermäßigten Tarif - dort wird "ermaessigt" ignoriert.
     """
-    if ist_wochenend_tarif(datum):
+    if wochenend_liste:
         return PREISSTUFEN_WOCHENENDE
     return PREISSTUFEN_WOCHENTAG_ERMAESSIGT if ermaessigt else PREISSTUFEN_WOCHENTAG
 
 
-def beide_preise_fuer_datum(datum: date) -> list:
+def preisstufen_fuer_datum(datum: date, ermaessigt: bool = False) -> list:
     """
-    Gibt für ein Datum die Preisstufen mit BEIDEN Tarifen gleichzeitig zurück,
-    als Liste von (start, ende, preis_regulaer, preis_ermaessigt) - praktisch
-    für eine Anzeige, die beide Preise nebeneinander zeigt.
+    Wie preisstufen_fuer_liste, aber die Liste ergibt sich automatisch aus
+    dem Datum (Samstag/Sonntag/Feiertag = Wochenend-Liste).
+    """
+    return preisstufen_fuer_liste(ist_wochenend_tarif(datum), ermaessigt)
 
-    Am Wochenende/Feiertag ist preis_ermaessigt == preis_regulaer, weil es
+
+def beide_preise_fuer_liste(wochenend_liste: bool) -> list:
+    """
+    Gibt für eine Preisliste die Preisstufen mit BEIDEN Tarifen gleichzeitig
+    zurück, als Liste von (start, ende, preis_regulaer, preis_ermaessigt) -
+    praktisch für eine Anzeige, die beide Preise nebeneinander zeigt.
+
+    In der Wochenend-Liste ist preis_ermaessigt == preis_regulaer, weil es
     dort laut Preisliste keinen ermäßigten Tarif gibt.
     """
-    regulaer = preisstufen_fuer_datum(datum, ermaessigt=False)
-    ermaessigt = preisstufen_fuer_datum(datum, ermaessigt=True)
+    regulaer = preisstufen_fuer_liste(wochenend_liste, ermaessigt=False)
+    ermaessigt = preisstufen_fuer_liste(wochenend_liste, ermaessigt=True)
     return [
         (r_start, r_ende, r_preis, e_preis)
         for (r_start, r_ende, r_preis), (_e_start, _e_ende, e_preis) in zip(regulaer, ermaessigt)
     ]
+
+
+def beide_preise_fuer_datum(datum: date) -> list:
+    """Wie beide_preise_fuer_liste, die Liste ergibt sich aus dem Datum."""
+    return beide_preise_fuer_liste(ist_wochenend_tarif(datum))
 
 
 def zeitraum_label(datum: date, uhrzeit: time) -> str:
@@ -98,8 +112,20 @@ def zeitraum_label(datum: date, uhrzeit: time) -> str:
     Spiele-Übersicht. Die Zeitgrenzen sind unabhängig vom ermäßigten Tarif
     (nur die Preise unterscheiden sich), daher wird hier immer die reguläre
     Tabelle als Nachschlagewerk verwendet.
+
+    Gespeichert wird immer der START einer Preisstufe. Passt dieser Start
+    nicht zur Liste des Datums, aber genau zur anderen Liste (Sonderfall:
+    am Wochenende wurde die Wochentag-Preisliste gewählt, z.B. wegen einer
+    Vergünstigung vom Platzwart), zeigt das Label den Zeitraum dieser Liste.
     """
-    stufen = preisstufen_fuer_datum(datum)
+    eigene = preisstufen_fuer_datum(datum)
+    andere = PREISSTUFEN_WOCHENTAG if ist_wochenend_tarif(datum) else PREISSTUFEN_WOCHENENDE
+    for stufen in (eigene, andere):
+        for start, ende, _preis in stufen:
+            if start == uhrzeit:
+                return f"{start.strftime('%H:%M')}–{ende.strftime('%H:%M')} Uhr"
+
+    stufen = eigene
     for start, ende, _preis in stufen:
         if start <= uhrzeit < ende:
             return f"{start.strftime('%H:%M')}–{ende.strftime('%H:%M')} Uhr"
@@ -109,16 +135,16 @@ def zeitraum_label(datum: date, uhrzeit: time) -> str:
     return f"{start.strftime('%H:%M')}–{ende.strftime('%H:%M')} Uhr"
 
 
-def ermittle_preis(datum: date, uhrzeit: time, ermaessigt: bool = False) -> float:
+def ermittle_preis_fuer_liste(wochenend_liste: bool, uhrzeit: time, ermaessigt: bool = False) -> float:
     """
-    Liefert den Preis pro Einheit (€) für einen Spieltermin, basierend auf
-    der Preisliste des Betreibers.
+    Liefert den Preis pro Einheit (€) für die gewählte Preisliste und
+    Startzeit.
 
     Maßgeblich ist die Startzeit der Session (nicht anteilig pro Minute
     berechnet, falls eine Session über eine Preisgrenze hinausgeht - das
     entspricht der üblichen Abrechnungspraxis beim Court-Buchen).
     """
-    stufen = preisstufen_fuer_datum(datum, ermaessigt)
+    stufen = preisstufen_fuer_liste(wochenend_liste, ermaessigt)
 
     for start, ende, preis in stufen:
         if start <= uhrzeit < ende:
@@ -130,3 +156,12 @@ def ermittle_preis(datum: date, uhrzeit: time, ermaessigt: bool = False) -> floa
     if uhrzeit < stufen[0][0]:
         return stufen[0][2]
     return stufen[-1][2]
+
+
+def ermittle_preis(datum: date, uhrzeit: time, ermaessigt: bool = False) -> float:
+    """
+    Liefert den Preis pro Einheit (€) für einen Spieltermin, basierend auf
+    der Preisliste des Betreibers; die Liste (Wochentag oder Wochenende)
+    ergibt sich aus dem Datum.
+    """
+    return ermittle_preis_fuer_liste(ist_wochenend_tarif(datum), uhrzeit, ermaessigt)
