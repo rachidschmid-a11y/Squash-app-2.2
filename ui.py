@@ -6,7 +6,9 @@ import database as db
 import calculations as calc
 import visualizations as vis
 import export_utils
+import meldungen
 import preisliste
+import statistik
 import zeit_utils
 
 @st.dialog("Karte wirklich löschen?")
@@ -18,9 +20,10 @@ def confirm_delete_karte_dialog(karte_id):
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Ja, endgültig löschen", type="primary", width="stretch"):
+            # Nur bei Erfolg neu laden - sonst bliebe der Fehler unsichtbar
             if db.delete_karte(karte_id):
-                st.success("Die aktive Karte wurde erfolgreich gelöscht!")
-            st.rerun()
+                meldungen.merke("Die aktive Karte wurde gelöscht.")
+                st.rerun()
     with col2:
         if st.button("Abbrechen", width="stretch"):
             st.rerun()
@@ -57,8 +60,8 @@ def confirm_delete_spiel_dialog(eintrag, karte):
                 neues_guthaben = alter_guthaben + eintrag.get("kosten", 0)
                 db.update_karte_guthaben(karte["id"], alter_guthaben, neues_guthaben)
             if db.delete_spiel_by_id(eintrag["id"]):
-                st.success(f"Eintrag {eintrag['id']} erfolgreich gelöscht!")
-            st.rerun()
+                meldungen.merke(f"Eintrag {eintrag['id']} wurde gelöscht.")
+                st.rerun()
     with col2:
         if st.button("Abbrechen", width="stretch"):
             st.rerun()
@@ -91,271 +94,276 @@ def confirm_reaktiviere_karte_dialog(karte_zum_reaktivieren, aktuelle_karte):
             db.delete_abrechnung_fuer_karte(karte_zum_reaktivieren["id"])
             db.reaktiviere_spiele_fuer_karte(karte_zum_reaktivieren["id"])
             if db.set_karte_aktiv(karte_zum_reaktivieren["id"], True):
-                st.success(f"Karte ID {karte_zum_reaktivieren['id']} wurde reaktiviert.")
-            st.rerun()
+                meldungen.merke(f"Karte ID {karte_zum_reaktivieren['id']} wurde reaktiviert.")
+                st.rerun()
     with col2:
         if st.button("Abbrechen", width="stretch"):
             st.rerun()
 
+
+# ---------------------------------------------------------------------------
+# Seite "Abrechnung & Guthaben" - aufgeteilt in vier Tabs, damit nicht alles
+# in einer endlos langen Seite untereinander steht (v.a. auf dem Handy).
+# ---------------------------------------------------------------------------
+
 def render_abrechnung_page():
-    st.title("🏸 Squash Abrechnung & Guthaben")
+    st.title("💰 Abrechnung & Guthaben")
 
     aktive_spieler = db.get_aktive_spieler_namen()
+    karte = db.get_karte()
+    spiele = db.get_spiele()
+
     if not aktive_spieler:
         st.warning(
             "Es sind noch keine aktiven Spieler hinterlegt. Bitte zuerst unter "
             "'👥 Spielerverwaltung' Spieler anlegen."
         )
 
-    with st.expander("➕ Neue Karte starten"):
-        st.markdown("#### 📋 Letzte Abrechnung (Historie)")
-        letzte_schulden, alter_zahler = db.get_letzte_abrechnung()
-
-        if letzte_schulden:
-            st.caption(f"Zur Erinnerung: Das waren die Ausgleichszahlungen für die letzte Karte von **{alter_zahler}**:")
-            summe_kontrolle = 0.0
-            for eintrag in letzte_schulden:
-                summe_kontrolle += eintrag["betrag"]
-                if eintrag['spieler'] != alter_zahler:
-                    st.write(f"• **{eintrag['spieler']}** → **{eintrag['betrag']:.2f} €** an {alter_zahler}")
-                else:
-                    st.write(f"• *{eintrag['spieler']} (Zahler der Karte)* → **{eintrag['betrag']:.2f} €** an sich selbst")
-            st.caption(f"Σ Summe zur Kontrolle: **{summe_kontrolle:.2f} €**")
-
-            letzte_karte_obj = db.get_letzte_inaktive_karte()
-            spiele_fuer_abrechnung = db.get_spiele_fuer_karte(letzte_karte_obj["id"]) if letzte_karte_obj else []
-            if spiele_fuer_abrechnung:
-                df_spiele_abrechnung = calc.format_dataframe(pd.DataFrame(spiele_fuer_abrechnung))
-                st.download_button(
-                    "📥 Abrechnung als CSV exportieren (alle berücksichtigten Spiele)",
-                    data=export_utils.to_csv_bytes(df_spiele_abrechnung),
-                    file_name=f"abrechnung_spiele_{alter_zahler}_{date.today().isoformat()}.csv",
-                    mime="text/csv",
-                    key="dl_abrechnung_historie",
-                )
-        else:
-            st.info("Keine historischen Abrechnungsdaten gefunden.")
-
-        st.divider()
-
-        st.markdown("#### Neue Karte aktivieren")
-
-        if not aktive_spieler:
-            st.info("Erst Spieler anlegen, um eine Karte zu starten.")
-        else:
-            bezahlt_von = st.selectbox("Wer hat die Karte bezahlt?", aktive_spieler, key="card_payer")
-
-            hat_verguenstigung = st.checkbox(
-                "Gibt es eine Vergünstigung für diese Karte?",
-                key="card_discount_checkbox",
+    # Kompakte Kopfzeile: das Wichtigste (Restguthaben) ist in jedem Tab sichtbar
+    if karte:
+        with st.container(border=True):
+            st.markdown(
+                f"💳 **Restguthaben: {karte['guthaben']:.2f} €** · "
+                f"Karte von **{karte.get('bezahlt_von', 'Unbekannt')}**"
             )
+    else:
+        st.warning("Keine aktive Karte vorhanden. Im Tab „🔄 Neue Karte“ kann eine neue Karte gestartet werden.")
 
-            if hat_verguenstigung:
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    bezahlt_betrag = st.number_input(
-                        "Wie viel wurde tatsächlich bezahlt (€)?",
-                        min_value=0.0,
-                        value=cfg.STANDARD_BEZAHLT_BETRAG,
-                        step=1.0,
-                        key="card_bezahlt_betrag",
-                    )
-                with col_b:
-                    anfangsguthaben_eingabe = st.number_input(
-                        "Wie viel Guthaben wird auf die Karte geladen (€)?",
-                        min_value=0.01,
-                        value=cfg.STANDARD_ANFANGSGUTHABEN_MIT_VERGUENSTIGUNG,
-                        step=1.0,
-                        key="card_anfangsguthaben",
-                    )
-                st.caption(
-                    f"→ Rabatt-Faktor: {bezahlt_betrag / anfangsguthaben_eingabe:.3f} "
-                    f"(bezahlt / aufgeladen)"
-                )
-            else:
-                anfangsguthaben_eingabe = st.number_input(
-                    "Kartenwert / aufgeladenes Guthaben (€)",
-                    min_value=0.01,
-                    value=cfg.STANDARD_ANFANGSGUTHABEN,
-                    step=1.0,
-                    key="card_wert_ohne_rabatt",
-                )
-                bezahlt_betrag = anfangsguthaben_eingabe
+    tab_session, tab_stand, tab_karte, tab_korrektur = st.tabs(
+        ["➕ Session", "💳 Stand", "🔄 Neue Karte", "🛠️ Korrektur"]
+    )
+    with tab_session:
+        _tab_session(aktive_spieler, karte)
+    with tab_stand:
+        _tab_kartenstand(aktive_spieler, karte, spiele)
+    with tab_karte:
+        _tab_neue_karte(aktive_spieler, karte)
+    with tab_korrektur:
+        _tab_korrigieren(karte, spiele)
 
-            offene_ueberschuss = db.get_offene_ueberschuss_spiele()
-            summe_ueberschuss = round(sum(row["kosten"] for row in offene_ueberschuss), 2)
-            if offene_ueberschuss:
-                verursacher = ", ".join(sorted({row["spieler"] for row in offene_ueberschuss}))
-                st.warning(
-                    f"⚠️ Es liegen noch {summe_ueberschuss:.2f} € offener Überschuss von der "
-                    f"letzten Karte vor (verursacht von: {verursacher}). Dieser Betrag wird beim "
-                    f"Aktivieren automatisch von dieser neuen Karte abgezogen und bleibt in der "
-                    f"Spiele-Übersicht/Kostenstatistik diesen Personen zugeordnet."
-                )
-                verbleibendes_startguthaben = round(anfangsguthaben_eingabe - summe_ueberschuss, 2)
-                vis.render_split_balken(
-                    verbleibendes_startguthaben,
-                    summe_ueberschuss,
-                    label_gedeckt="Verbleibt für neue Sessions",
-                    label_neu="Übernommener Überschuss",
-                )
 
-            if st.button("Karte aktivieren"):
-                # Kein pauschaler Übertrag eines negativen Endstands mehr: Die alte
-                # Karte wird nur noch auf ihre EIGENEN Einträge abgerechnet. Ein
-                # etwaiger Überschuss (Session größer als das verbleibende
-                # Guthaben) wurde bereits beim Eintragen sauber abgespalten und
-                # verursachergerecht auf die beteiligten Spieler verteilt (siehe
-                # speichern_logik) - der wird hier jetzt übernommen, alles
-                # andere NICHT nochmal abgezogen.
-                start_guthaben = round(anfangsguthaben_eingabe - summe_ueberschuss, 2)
-                faktor = round(bezahlt_betrag / anfangsguthaben_eingabe, 6)
+def _letzte_session_vorgaben(aktive_spieler):
+    """
+    Was bei der zuletzt eingetragenen Session gewählt wurde - als Vorbelegung
+    für das Formular (die Gruppe spielt meist zur gleichen Zeit, im gleichen
+    Tarif und mit den gleichen Leuten).
 
-                if db.insert_karte({
-                    "guthaben": start_guthaben,
-                    "aktiv": True,
-                    "bezahlt_von": bezahlt_von,
-                    "anfangsguthaben": anfangsguthaben_eingabe,
-                    "bezahlt_betrag": bezahlt_betrag,
-                    "faktor": faktor,
-                }):
-                    if offene_ueberschuss:
-                        neue_karte = db.get_karte()
-                        if neue_karte:
-                            db.claim_offene_ueberschuss_spiele(neue_karte["id"])
-                        st.success(
-                            f"Neue Karte gestartet! Bezahlt von: {bezahlt_von}. "
-                            f"{summe_ueberschuss:.2f} € Überschuss wurden direkt abgezogen "
-                            f"(verursacht von: {verursacher})."
-                        )
-                    else:
-                        st.success(f"Neue Karte gestartet! Bezahlt von: {bezahlt_von}")
-                    st.rerun()
+    Liefert: uhrzeit (Start der Preisstufe oder None), ermaessigt (Tarif der
+    letzten Wochentags-Session) und mitspieler (Namen der letzten Session,
+    nur noch aktive Spieler).
+    """
+    vorgaben = {"uhrzeit": None, "ermaessigt": False, "mitspieler": []}
+    zeilen = db.get_alle_spiele(limit=60)  # neueste zuerst
+    if not zeilen:
+        return vorgaben
 
-    st.divider()
-    st.subheader("Neues Spiel (Session) eintragen")
+    letzte = zeilen[0]
+    try:
+        vorgaben["uhrzeit"] = datetime.strptime(str(letzte["gespielt_uhrzeit"])[:5], "%H:%M").time()
+    except (KeyError, ValueError, TypeError):
+        pass
 
+    namen = {
+        z["spieler"] for z in zeilen
+        if z.get("gespielt_am") == letzte.get("gespielt_am")
+        and z.get("gespielt_uhrzeit") == letzte.get("gespielt_uhrzeit")
+    }
+    vorgaben["mitspieler"] = [n for n in aktive_spieler if n in namen]
+
+    # Am Wochenende/Feiertag gibt es keinen ermäßigten Tarif (wird dort immer
+    # als "nicht ermäßigt" gespeichert) - deshalb zählt die letzte Wochentags-Zeile.
+    for z in zeilen:
+        try:
+            tag = date.fromisoformat(str(z["gespielt_am"])[:10])
+        except (KeyError, ValueError):
+            continue
+        if not preisliste.ist_wochenend_tarif(tag):
+            vorgaben["ermaessigt"] = bool(z.get("ermaessigt"))
+            break
+    return vorgaben
+
+
+def _stufen_index(stufen, uhrzeit):
+    """Position der Preisstufe, in die die Uhrzeit fällt (oder None)."""
+    if uhrzeit is None:
+        return None
+    for i, (start, ende, *_rest) in enumerate(stufen):
+        if start <= uhrzeit < ende:
+            return i
+    return None
+
+
+def _setze_mitspieler(namen):
+    # Als on_click-Callback aufgerufen: läuft VOR dem nächsten Seitenaufbau, nur
+    # dort darf der Wert eines Widgets (key) von außen gesetzt werden.
+    st.session_state["fin_mitspieler"] = list(namen)
+
+
+def _tab_session(aktive_spieler, karte):
     if not aktive_spieler:
         st.info("Erst Spieler unter '👥 Spielerverwaltung' anlegen, um ein Spiel einzutragen.")
-    else:
-        jetzt_berlin = datetime.now(zeit_utils.BERLIN_TZ)
+        return
+    if karte is None:
+        st.info("Ohne aktive Karte kann keine Session gebucht werden. Bitte zuerst im Tab „🔄 Neue Karte“ eine Karte starten.")
+        return
 
-        col1, col2 = st.columns(2)
-        with col1:
-            eingetragen_von = st.selectbox("Eingetragen von", aktive_spieler, key="fin_input_by")
-        with col2:
-            gespielt_am = st.date_input("Gespielt am", jetzt_berlin.date(), key="fin_date")
+    # Nach erfolgreichem Speichern Auswahl leeren (verhindert versehentliches
+    # Doppelt-Speichern). Muss vor dem Erzeugen der Widgets passieren.
+    if st.session_state.pop("fin_reset", False):
+        st.session_state["fin_mitspieler"] = []
+        st.session_state["fin_units"] = 1
 
-        ist_wochenende = preisliste.ist_wochenend_tarif(gespielt_am)
-        ermaessigt = False
-        if ist_wochenende:
-            st.caption("Am Wochenende/Feiertag gibt es laut Preisliste keinen ermäßigten Tarif.")
-        else:
-            ermaessigt = st.checkbox(
-                "Ermäßigten Tarif (Schüler/Studenten) abrechnen?",
-                key="fin_ermaessigt",
-            )
+    vorgaben = _letzte_session_vorgaben(aktive_spieler)
+    jetzt_berlin = datetime.now(zeit_utils.BERLIN_TZ)
 
-        kombi_stufen = preisliste.beide_preise_fuer_datum(gespielt_am)
-        zeitraum_optionen = {}
-        for start, ende, preis_regulaer, preis_erm in kombi_stufen:
-            zeit_label = f"{start.strftime('%H:%M')}–{ende.strftime('%H:%M')} Uhr"
-            if preis_regulaer == preis_erm:
-                # Wochenende/Feiertag: kein ermäßigter Tarif verfügbar
-                label = f"{zeit_label} ({preis_regulaer:.2f} €/Einheit)"
-            else:
-                label = f"{zeit_label} — {preis_regulaer:.2f} € (ermäßigt **{preis_erm:.2f} €**)"
-            preis_gewaehlt = preis_erm if ermaessigt else preis_regulaer
-            zeitraum_optionen[label] = (start, preis_gewaehlt)
-        zeitraum_labels = list(zeitraum_optionen.keys())
+    col1, col2 = st.columns(2)
+    with col1:
+        eingetragen_von = st.selectbox("Eingetragen von", aktive_spieler, key="fin_input_by")
+    with col2:
+        gespielt_am = st.date_input("Gespielt am", jetzt_berlin.date(), key="fin_date")
 
-        # Passenden Zeitraum vorauswählen, wenn heute gespielt wurde
-        default_index = 0
-        if gespielt_am == jetzt_berlin.date():
-            for i, (start, ende, _preis_reg, _preis_erm) in enumerate(kombi_stufen):
-                if start <= jetzt_berlin.time() < ende:
-                    default_index = i
-                    break
-
-        # Eigener Key je nachdem ob Wochentag/Wochenende, damit ein
-        # Datumswechsel zwischen den beiden Tarif-Sets nicht zu einer
-        # ungültigen alten Auswahl führt. Das Umschalten der
-        # "ermäßigt"-Checkbox ändert die Label-Texte nicht (nur den intern
-        # zugeordneten Preis), braucht also keinen eigenen Key.
-        zeitraum_key = f"fin_zeitraum_{'we' if ist_wochenende else 'wt'}"
-        auswahl_label = st.radio(
-            "In welchem Zeitraum wurde gespielt?",
-            zeitraum_labels,
-            index=default_index,
-            key=zeitraum_key,
-        )
-        uhrzeit, preis_pro_einheit = zeitraum_optionen[auswahl_label]
-
+    # Welche Preisliste gilt? Vorbelegt nach Datum (Samstag/Sonntag/Feiertag =
+    # Wochenend-Liste), aber frei wählbar: Der Platzwart gewährt gelegentlich
+    # auch am Wochenende die Wochentag-Preise inkl. Studententarif, die die
+    # Standard-Preisliste dort nicht kennt.
+    ist_wochenende = preisliste.ist_wochenend_tarif(gespielt_am)
+    liste_optionen = ["Wochentag (Mo–Fr)", "Wochenende / Feiertag"]
+    liste_gewaehlt = st.radio(
+        "Preisliste",
+        liste_optionen,
+        index=1 if ist_wochenende else 0,
+        horizontal=True,
+        key=f"fin_liste_{'we' if ist_wochenende else 'wt'}",
+    )
+    wochenend_liste = liste_gewaehlt == liste_optionen[1]
+    if wochenend_liste != ist_wochenende:
         st.caption(
-            f"→ Wird vom Guthaben abgebucht: {preis_pro_einheit:.2f} € pro Einheit "
-            f"(ohne Kartenrabatt - der wirkt erst in der Endabrechnung)"
+            "ℹ️ Abweichend vom Datum: Es gilt die "
+            + ("Wochenend-" if wochenend_liste else "Wochentag-")
+            + "Preisliste (z.B. wegen einer Vergünstigung vom Platzwart)."
         )
 
-        # st.multiselect statt einer Checkbox-Spalte pro Spieler: bei vielen
-        # Spielern auf dem Handy sonst schnell zu eng nebeneinander (siehe
-        # Übergabe-Notiz zur mobilen Darstellung). Liefert wie zuvor eine
-        # einfache Liste von Namen.
-        auswahl = st.multiselect("Mitspieler auswählen", aktive_spieler, key="fin_mitspieler")
+    ermaessigt = False
+    if wochenend_liste:
+        st.caption("Die Wochenend-Preisliste kennt laut Betreiber keinen ermäßigten Tarif.")
+    else:
+        # Vorbelegt mit dem Tarif der letzten Wochentags-Session
+        ermaessigt = st.checkbox(
+            "Ermäßigten Tarif (Schüler/Studenten) abrechnen?",
+            value=vorgaben["ermaessigt"],
+            key="fin_ermaessigt",
+        )
 
-        einheiten = st.number_input("Einheiten (45 Minuten)", min_value=1, max_value=20, value=1, key="fin_units")
+    kombi_stufen = preisliste.beide_preise_fuer_liste(wochenend_liste)
+    zeitraum_optionen = {}
+    for start, ende, preis_regulaer, preis_erm in kombi_stufen:
+        zeit_label = f"{start.strftime('%H:%M')}–{ende.strftime('%H:%M')} Uhr"
+        if preis_regulaer == preis_erm:
+            # Wochenende/Feiertag: kein ermäßigter Tarif verfügbar
+            label = f"{zeit_label} ({preis_regulaer:.2f} €/Einheit)"
+        else:
+            label = f"{zeit_label} — {preis_regulaer:.2f} € (ermäßigt **{preis_erm:.2f} €**)"
+        preis_gewaehlt = preis_erm if ermaessigt else preis_regulaer
+        zeitraum_optionen[label] = (start, preis_gewaehlt)
+    zeitraum_labels = list(zeitraum_optionen.keys())
 
-        if auswahl:
-            # --- Vorschau vor dem Speichern ------------------------------
-            # Reine Anzeige-Berechnung, damit Fehleingaben (falsche
-            # Mitspieler/Einheiten/Zeitraum) VOR dem eigentlichen Buchen
-            # auffallen. Die tatsächliche, cent-exakte Aufteilung inkl.
-            # Überschuss-Splitting passiert weiterhin ausschließlich in
-            # calc.speichern_logik() - hier wird sie nur näherungsweise
-            # nachgebildet (gleiche min()/max()-Formel wie dort), damit
-            # nichts an der echten Buchungslogik geändert werden musste.
-            st.markdown("**Vorschau:**")
-            gesamtpreis = round(einheiten * preis_pro_einheit, 2)
-            aktuelle_karte_vorschau = db.get_karte()
-            aktuelles_guthaben = aktuelle_karte_vorschau["guthaben"] if aktuelle_karte_vorschau else 0.0
+    # Vorauswahl des Zeitraums: 1. Zeitraum der letzten Session (die Gruppe
+    # spielt meist zur gleichen Zeit), 2. sonst - wenn heute gespielt wird -
+    # der Zeitraum der aktuellen Uhrzeit, 3. sonst der erste Zeitraum.
+    default_index = _stufen_index(kombi_stufen, vorgaben["uhrzeit"])
+    if default_index is None and gespielt_am == jetzt_berlin.date():
+        default_index = _stufen_index(kombi_stufen, jetzt_berlin.time())
+    if default_index is None:
+        default_index = 0
 
-            p1, p2, p3 = st.columns(3)
-            p1.metric("Spieler", len(auswahl))
-            p2.metric("Gesamtpreis", f"{gesamtpreis:.2f} €")
-            p3.metric("Preis/Spieler (ca.)", f"{gesamtpreis / len(auswahl):.2f} €")
+    # Eigener Key je nachdem ob Wochentag- oder Wochenend-Liste gewählt ist, damit ein
+    # Wechsel zwischen den beiden Tarif-Sets nicht zu einer
+    # ungültigen alten Auswahl führt. Das Umschalten der
+    # "ermäßigt"-Checkbox ändert die Label-Texte nicht (nur den intern
+    # zugeordneten Preis), braucht also keinen eigenen Key.
+    zeitraum_key = f"fin_zeitraum_{'we' if wochenend_liste else 'wt'}"
+    auswahl_label = st.radio(
+        "In welchem Zeitraum wurde gespielt?",
+        zeitraum_labels,
+        index=default_index,
+        key=zeitraum_key,
+    )
+    uhrzeit, preis_pro_einheit = zeitraum_optionen[auswahl_label]
 
-            if aktuelle_karte_vorschau:
-                kosten_gedeckt = round(min(gesamtpreis, max(aktuelles_guthaben, 0)), 2)
-                kosten_ueberschuss = round(gesamtpreis - kosten_gedeckt, 2)
-                if kosten_ueberschuss > 0:
-                    vis.render_split_balken(kosten_gedeckt, kosten_ueberschuss)
-                else:
-                    neues_guthaben_vorschau = round(aktuelles_guthaben - gesamtpreis, 2)
-                    st.caption(
-                        f"Guthaben: {aktuelles_guthaben:.2f} € → **{neues_guthaben_vorschau:.2f} €** nach dieser Session"
-                    )
+    st.caption(
+        f"→ Wird vom Guthaben abgebucht: {preis_pro_einheit:.2f} € pro Einheit "
+        f"(ohne Kartenrabatt - der wirkt erst in der Endabrechnung)"
+    )
+
+    # Mitspieler per Dropdown (Mehrfachauswahl). Der Knopf darüber übernimmt die
+    # Gruppe der letzten Session mit einem Tipp.
+    if vorgaben["mitspieler"]:
+        st.button(
+            f"👥 Wie letzte Session ({', '.join(vorgaben['mitspieler'])})",
+            on_click=_setze_mitspieler,
+            args=(vorgaben["mitspieler"],),
+            key="btn_wie_letzte_session",
+        )
+    auswahl = st.multiselect("Mitspieler auswählen", aktive_spieler, key="fin_mitspieler", placeholder="Spieler auswählen")
+
+    # kein value=...: der Startwert ist min_value (1), und fin_units wird nach dem Speichern per session_state zurückgesetzt
+    einheiten = st.number_input("Einheiten (45 Minuten)", min_value=1, max_value=20, key="fin_units")
+
+    gesamtpreis = round(einheiten * preis_pro_einheit, 2)
+    if auswahl:
+        # --- Vorschau vor dem Speichern ------------------------------
+        # Reine Anzeige-Berechnung, damit Fehleingaben (falsche
+        # Mitspieler/Einheiten/Zeitraum) VOR dem eigentlichen Buchen
+        # auffallen. Die tatsächliche, cent-exakte Aufteilung inkl.
+        # Überschuss-Splitting passiert weiterhin ausschließlich in
+        # calc.speichern_logik() - hier wird sie nur näherungsweise
+        # nachgebildet (gleiche min()/max()-Formel wie dort), damit
+        # nichts an der echten Buchungslogik geändert werden musste.
+        aktuelles_guthaben = karte["guthaben"]
+
+        st.markdown(
+            f"**Vorschau:** {len(auswahl)} Spieler · {einheiten} Einheit(en) · "
+            f"**{gesamtpreis:.2f} €** gesamt · ca. {gesamtpreis / len(auswahl):.2f} € pro Spieler"
+        )
+
+        kosten_gedeckt = round(min(gesamtpreis, max(aktuelles_guthaben, 0)), 2)
+        kosten_ueberschuss = round(gesamtpreis - kosten_gedeckt, 2)
+        if kosten_ueberschuss > 0:
+            vis.render_split_balken(kosten_gedeckt, kosten_ueberschuss)
+        else:
+            neues_guthaben_vorschau = round(aktuelles_guthaben - gesamtpreis, 2)
+            st.caption(
+                f"Guthaben: {aktuelles_guthaben:.2f} € → **{neues_guthaben_vorschau:.2f} €** nach dieser Session"
+            )
+    else:
+        st.caption("Wähle mindestens einen Mitspieler aus, um die Session zu speichern.")
+
+    if st.button("💾 Session speichern", type="primary", disabled=not auswahl, key="btn_session_speichern"):
+        status, msg = calc.speichern_logik(
+            auswahl, einheiten, eingetragen_von, gespielt_am, uhrzeit, ermaessigt, wochenend_liste=wochenend_liste
+        )
+        if status == "error":
+            st.error(msg)
+        else:
+            zusammenfassung = f"{len(auswahl)} Spieler · {einheiten} Einheit(en) · {gesamtpreis:.2f} €"
+            if status == "success":
+                neue_karte = db.get_karte()
+                rest = f" Restguthaben: {neue_karte['guthaben']:.2f} €." if neue_karte else ""
+                meldungen.merke(f"✅ Session gespeichert: {zusammenfassung}.{rest}", "success")
             else:
-                st.warning("Keine aktive Karte vorhanden - die Session kann nicht gebucht werden.")
+                meldungen.merke(
+                    f"✅ Session gespeichert: {zusammenfassung}.\n\n{msg}\n\n"
+                    f"Wer wie viel zahlen muss, steht im Tab „🔄 Neue Karte“.",
+                    "warning",
+                )
+            st.session_state["fin_reset"] = True
+            st.rerun()
 
-        if st.button("💾 Session speichern"):
-            if len(auswahl) == 0:
-                st.warning("Bitte Spieler auswählen")
-            else:
-                status, msg = calc.speichern_logik(auswahl, einheiten, eingetragen_von, gespielt_am, uhrzeit, ermaessigt)
-                if status == "success":
-                    st.success(msg)
-                elif status == "warning":
-                    st.info(msg)
-                else:
-                    st.error(msg)
-                if status != "error":
-                    st.rerun()
 
-    st.divider()
+def _tab_kartenstand(aktive_spieler, karte, spiele):
     st.subheader("Aktueller Stand")
-    karte = db.get_karte()
     if karte:
         vis.render_karten_uebersicht(karte)
-        st.caption(f"Diese Karte wurde bezahlt von: **{karte.get('bezahlt_von', 'Unbekannt')}**")
         if karte.get("bezahlt_betrag") is not None and karte.get("anfangsguthaben") is not None:
             st.caption(
                 f"Bezahlt: {karte['bezahlt_betrag']:.2f} € für {karte['anfangsguthaben']:.2f} € Guthaben "
@@ -380,95 +388,11 @@ def render_abrechnung_page():
                         st.info("Dieser Spieler ist bereits als Zahler eingetragen.")
                     else:
                         if db.update_karte_zahler(karte["id"], neuer_zahler):
-                            st.success(f"Zahler erfolgreich auf **{neuer_zahler}** geändert!")
+                            meldungen.merke(f"Zahler wurde auf **{neuer_zahler}** geändert.")
                             st.rerun()
     else:
         st.warning("Keine aktive Karte vorhanden. Bitte neue Karte starten.")
 
-    spiele = db.get_spiele()
-    if spiele:
-        if any(row.get("einheiten") == 0 for row in spiele):
-            st.caption(
-                "ℹ️ Zeilen mit 0 Einheiten sind keine eigenen Sessions, sondern "
-                "Überschuss-Anteile aus einer Session, die das Guthaben einer Karte "
-                "überschritten hat (siehe Warnhinweis oben bei 'Neue Karte aktivieren')."
-            )
-        df_display = calc.format_dataframe(pd.DataFrame(spiele))
-        st.dataframe(df_display, width="stretch")
-        st.download_button(
-            "📥 Spiele-Übersicht als CSV exportieren",
-            data=export_utils.to_csv_bytes(df_display),
-            file_name=f"spiele_kosten_{date.today().isoformat()}.csv",
-            mime="text/csv",
-            key="dl_spiele_kosten",
-        )
-    else:
-        st.info("Noch keine Spiele auf der aktuellen Karte vorhanden")
-
-    st.divider()
-    with st.expander("🗑️ Fehlerhaften Eintrag oder Karte löschen"):
-        st.markdown("#### 🏸 Spiel-Session löschen")
-        zeige_abgerechnete = st.checkbox(
-            "Auch bereits abgerechnete Einträge anzeigen (z.B. um einen Fehleintrag zu "
-            "finden, der durch eine automatische Abrechnung aus der Übersicht verschwunden ist)",
-            key="zeige_abgerechnete_spiele",
-        )
-        spiele_zum_loeschen = db.get_alle_spiele(limit=50) if zeige_abgerechnete else spiele
-
-        if spiele_zum_loeschen:
-            df_raw = pd.DataFrame(spiele_zum_loeschen)
-            optionen = {
-                row["id"]: (
-                    f"ID {row['id']} | {pd.to_datetime(row['gespielt_am']).strftime('%d.%m.%Y')} | "
-                    f"{row['spieler']} | {row['kosten']:.2f} €"
-                    + (" | ✅ abgerechnet" if row.get("abgerechnet") else "")
-                )
-                for _, row in df_raw.iterrows()
-            }
-            auswahl_id = st.selectbox("Welcher Eintrag soll gelöscht werden?", list(optionen.keys()), format_func=lambda x: optionen[x], key="del_fin_id")
-
-            if st.button("Eintrag löschen"):
-                eintrag = next((s for s in spiele_zum_loeschen if s["id"] == auswahl_id), None)
-                if eintrag:
-                    confirm_delete_spiel_dialog(eintrag, karte)
-        else:
-            st.info("Keine Einträge vorhanden, die gelöscht werden könnten.")
-
-        st.divider()
-        st.markdown("#### ⚠️ Aktive Karte stornieren")
-        if karte:
-            st.warning("Achtung: Das Löschen der aktiven Karte setzt das aktuelle Kartenguthaben zurück. Offene Sessions bleiben als 'nicht abgerechnet' bestehen und zählen für die nächste aktivierte Karte.")
-            if st.button("🔴 Aktive Karte unwiderruflich löschen", key="btn_delete_active_card"):
-                confirm_delete_karte_dialog(karte["id"])
-        else:
-            st.info("Keine aktive Karte vorhanden, die gelöscht werden könnte.")
-
-        st.divider()
-        st.markdown("#### ↩️ Kürzlich abgerechnete Karte reaktivieren")
-        st.caption(
-            "Falls eine Karte versehentlich zu früh automatisch abgerechnet wurde "
-            "(z.B. durch einen Fehleintrag, der das Guthaben ins Minus gebracht hat), "
-            "kann sie hier wieder aktiv geschaltet werden."
-        )
-        inaktive_karten = db.get_inaktive_karten(limit=5)
-        if inaktive_karten:
-            reaktivieren_optionen = {
-                k["id"]: f"ID {k['id']} | bezahlt von {k.get('bezahlt_von', 'Unbekannt')} | Guthaben {k['guthaben']:.2f} €"
-                for k in inaktive_karten
-            }
-            reaktivieren_auswahl_id = st.selectbox(
-                "Welche Karte reaktivieren?",
-                list(reaktivieren_optionen.keys()),
-                format_func=lambda x: reaktivieren_optionen[x],
-                key="reaktivieren_karte_id",
-            )
-            if st.button("Karte reaktivieren"):
-                karte_zum_reaktivieren = next(k for k in inaktive_karten if k["id"] == reaktivieren_auswahl_id)
-                confirm_reaktiviere_karte_dialog(karte_zum_reaktivieren, karte)
-        else:
-            st.info("Keine abgeschlossenen Karten vorhanden.")
-
-    st.divider()
     st.subheader("Kostenstatistik")
     if spiele:
         df_stats = pd.DataFrame(spiele).groupby("spieler")["kosten"].sum().reset_index()
@@ -534,6 +458,226 @@ def render_abrechnung_page():
         else:
             st.info("Noch keine Daten für eine Visualisierung vorhanden.")
 
+    st.subheader("Einträge auf dieser Karte")
+    if spiele:
+        if any(row.get("einheiten") == 0 for row in spiele):
+            st.caption(
+                "ℹ️ Zeilen mit 0 Einheiten sind keine eigenen Sessions, sondern "
+                "Überschuss-Anteile aus einer Session, die das Guthaben einer Karte "
+                "überschritten hat (siehe Hinweis im Tab „🔄 Neue Karte“)."
+            )
+        df_display = calc.format_dataframe(pd.DataFrame(spiele))
+        st.dataframe(df_display, width="stretch")
+        st.download_button(
+            "📥 Spiele-Übersicht als CSV exportieren",
+            data=export_utils.to_csv_bytes(df_display),
+            file_name=f"spiele_kosten_{date.today().isoformat()}.csv",
+            mime="text/csv",
+            key="dl_spiele_kosten",
+        )
+    else:
+        st.info("Noch keine Spiele auf der aktuellen Karte vorhanden")
+
+
+def _tab_neue_karte(aktive_spieler, karte):
+    st.markdown("#### 📋 Letzte Abrechnung")
+    letzte_schulden, alter_zahler = db.get_letzte_abrechnung()
+
+    if letzte_schulden:
+        st.caption(f"Ausgleichszahlungen für die letzte Karte von **{alter_zahler}**:")
+        vis.render_abrechnung_tabelle(letzte_schulden, alter_zahler)
+
+        letzte_karte_obj = db.get_letzte_inaktive_karte()
+        spiele_fuer_abrechnung = db.get_spiele_fuer_karte(letzte_karte_obj["id"]) if letzte_karte_obj else []
+        if spiele_fuer_abrechnung:
+            df_spiele_abrechnung = calc.format_dataframe(pd.DataFrame(spiele_fuer_abrechnung))
+            st.download_button(
+                "📥 Abrechnung als CSV exportieren (alle berücksichtigten Spiele)",
+                data=export_utils.to_csv_bytes(df_spiele_abrechnung),
+                file_name=f"abrechnung_spiele_{alter_zahler}_{date.today().isoformat()}.csv",
+                mime="text/csv",
+                key="dl_abrechnung_historie",
+            )
+    else:
+        st.info("Keine historischen Abrechnungsdaten gefunden.")
+
+    st.divider()
+    st.markdown("#### Neue Karte aktivieren")
+
+    if karte is not None:
+        # Zwei gleichzeitig aktive Karten würden die Buchungslogik durcheinander
+        # bringen (database.get_karte() nimmt dann irgendeine der beiden).
+        st.warning(
+            f"Es ist bereits eine Karte aktiv (Restguthaben {karte['guthaben']:.2f} €, "
+            f"bezahlt von {karte.get('bezahlt_von', 'Unbekannt')}). Sie wird automatisch "
+            f"abgerechnet, sobald das Guthaben nicht mehr reicht - danach kann hier die "
+            f"nächste Karte gestartet werden. Bei einer falsch angelegten Karte hilft der "
+            f"Tab „🛠️ Korrektur“."
+        )
+        return
+
+    if not aktive_spieler:
+        st.info("Erst Spieler anlegen, um eine Karte zu starten.")
+        return
+
+    bezahlt_von = st.selectbox("Wer hat die Karte bezahlt?", aktive_spieler, key="card_payer")
+
+    hat_verguenstigung = st.checkbox(
+        "Gibt es eine Vergünstigung für diese Karte?",
+        key="card_discount_checkbox",
+    )
+
+    if hat_verguenstigung:
+        col_a, col_b = st.columns(2)
+        with col_a:
+            bezahlt_betrag = st.number_input(
+                "Wie viel wurde tatsächlich bezahlt (€)?",
+                min_value=0.0,
+                value=cfg.STANDARD_BEZAHLT_BETRAG,
+                step=1.0,
+                key="card_bezahlt_betrag",
+            )
+        with col_b:
+            anfangsguthaben_eingabe = st.number_input(
+                "Wie viel Guthaben wird auf die Karte geladen (€)?",
+                min_value=0.01,
+                value=cfg.STANDARD_ANFANGSGUTHABEN_MIT_VERGUENSTIGUNG,
+                step=1.0,
+                key="card_anfangsguthaben",
+            )
+        st.caption(
+            f"→ Rabatt-Faktor: {bezahlt_betrag / anfangsguthaben_eingabe:.3f} "
+            f"(bezahlt / aufgeladen)"
+        )
+    else:
+        anfangsguthaben_eingabe = st.number_input(
+            "Kartenwert / aufgeladenes Guthaben (€)",
+            min_value=0.01,
+            value=cfg.STANDARD_ANFANGSGUTHABEN,
+            step=1.0,
+            key="card_wert_ohne_rabatt",
+        )
+        bezahlt_betrag = anfangsguthaben_eingabe
+
+    offene_ueberschuss = db.get_offene_ueberschuss_spiele()
+    summe_ueberschuss = round(sum(row["kosten"] for row in offene_ueberschuss), 2)
+    verursacher = ""
+    if offene_ueberschuss:
+        verursacher = ", ".join(sorted({row["spieler"] for row in offene_ueberschuss}))
+        st.warning(
+            f"⚠️ Es liegen noch {summe_ueberschuss:.2f} € offener Überschuss von der "
+            f"letzten Karte vor (verursacht von: {verursacher}). Dieser Betrag wird beim "
+            f"Aktivieren automatisch von dieser neuen Karte abgezogen und bleibt in der "
+            f"Spiele-Übersicht/Kostenstatistik diesen Personen zugeordnet."
+        )
+        verbleibendes_startguthaben = round(anfangsguthaben_eingabe - summe_ueberschuss, 2)
+        vis.render_split_balken(
+            verbleibendes_startguthaben,
+            summe_ueberschuss,
+            label_gedeckt="Verbleibt für neue Sessions",
+            label_neu="Übernommener Überschuss",
+        )
+
+    if st.button("Karte aktivieren", type="primary", key="btn_karte_aktivieren"):
+        # Kein pauschaler Übertrag eines negativen Endstands mehr: Die alte
+        # Karte wird nur noch auf ihre EIGENEN Einträge abgerechnet. Ein
+        # etwaiger Überschuss (Session größer als das verbleibende
+        # Guthaben) wurde bereits beim Eintragen sauber abgespalten und
+        # verursachergerecht auf die beteiligten Spieler verteilt (siehe
+        # speichern_logik) - der wird hier jetzt übernommen, alles
+        # andere NICHT nochmal abgezogen.
+        start_guthaben = round(anfangsguthaben_eingabe - summe_ueberschuss, 2)
+        faktor = round(bezahlt_betrag / anfangsguthaben_eingabe, 6)
+
+        if db.insert_karte({
+            "guthaben": start_guthaben,
+            "aktiv": True,
+            "bezahlt_von": bezahlt_von,
+            "anfangsguthaben": anfangsguthaben_eingabe,
+            "bezahlt_betrag": bezahlt_betrag,
+            "faktor": faktor,
+        }):
+            if offene_ueberschuss:
+                neue_karte = db.get_karte()
+                if neue_karte:
+                    db.claim_offene_ueberschuss_spiele(neue_karte["id"])
+                meldungen.merke(
+                    f"Neue Karte gestartet! Bezahlt von: {bezahlt_von}. "
+                    f"{summe_ueberschuss:.2f} € Überschuss wurden direkt abgezogen "
+                    f"(verursacht von: {verursacher})."
+                )
+            else:
+                meldungen.merke(f"Neue Karte gestartet! Bezahlt von: {bezahlt_von}")
+            st.rerun()
+
+
+def _tab_korrigieren(karte, spiele):
+    st.markdown("#### 🏸 Spiel-Session löschen")
+    zeige_abgerechnete = st.checkbox(
+        "Auch bereits abgerechnete Einträge anzeigen (z.B. um einen Fehleintrag zu "
+        "finden, der durch eine automatische Abrechnung aus der Übersicht verschwunden ist)",
+        key="zeige_abgerechnete_spiele",
+    )
+    spiele_zum_loeschen = db.get_alle_spiele(limit=50) if zeige_abgerechnete else spiele
+
+    if spiele_zum_loeschen:
+        df_raw = pd.DataFrame(spiele_zum_loeschen)
+        optionen = {
+            row["id"]: (
+                f"ID {row['id']} | {pd.to_datetime(row['gespielt_am']).strftime('%d.%m.%Y')} | "
+                f"{row['spieler']} | {row['kosten']:.2f} €"
+                + (" | ✅ abgerechnet" if row.get("abgerechnet") else "")
+            )
+            for _, row in df_raw.iterrows()
+        }
+        auswahl_id = st.selectbox("Welcher Eintrag soll gelöscht werden?", list(optionen.keys()), format_func=lambda x: optionen[x], key="del_fin_id")
+
+        if st.button("Eintrag löschen"):
+            eintrag = next((s for s in spiele_zum_loeschen if s["id"] == auswahl_id), None)
+            if eintrag:
+                confirm_delete_spiel_dialog(eintrag, karte)
+    else:
+        st.info("Keine Einträge vorhanden, die gelöscht werden könnten.")
+
+    st.divider()
+    st.markdown("#### ⚠️ Aktive Karte stornieren")
+    if karte:
+        st.warning("Achtung: Das Löschen der aktiven Karte setzt das aktuelle Kartenguthaben zurück. Offene Sessions bleiben als 'nicht abgerechnet' bestehen und zählen für die nächste aktivierte Karte.")
+        if st.button("🔴 Aktive Karte unwiderruflich löschen", key="btn_delete_active_card"):
+            confirm_delete_karte_dialog(karte["id"])
+    else:
+        st.info("Keine aktive Karte vorhanden, die gelöscht werden könnte.")
+
+    st.divider()
+    st.markdown("#### ↩️ Kürzlich abgerechnete Karte reaktivieren")
+    st.caption(
+        "Falls eine Karte versehentlich zu früh automatisch abgerechnet wurde "
+        "(z.B. durch einen Fehleintrag, der das Guthaben ins Minus gebracht hat), "
+        "kann sie hier wieder aktiv geschaltet werden."
+    )
+    inaktive_karten = db.get_inaktive_karten(limit=5)
+    if inaktive_karten:
+        reaktivieren_optionen = {
+            k["id"]: f"ID {k['id']} | bezahlt von {k.get('bezahlt_von', 'Unbekannt')} | Guthaben {k['guthaben']:.2f} €"
+            for k in inaktive_karten
+        }
+        reaktivieren_auswahl_id = st.selectbox(
+            "Welche Karte reaktivieren?",
+            list(reaktivieren_optionen.keys()),
+            format_func=lambda x: reaktivieren_optionen[x],
+            key="reaktivieren_karte_id",
+        )
+        if st.button("Karte reaktivieren"):
+            karte_zum_reaktivieren = next(k for k in inaktive_karten if k["id"] == reaktivieren_auswahl_id)
+            confirm_reaktiviere_karte_dialog(karte_zum_reaktivieren, karte)
+    else:
+        st.info("Keine abgeschlossenen Karten vorhanden.")
+
+
+# ---------------------------------------------------------------------------
+# Seite "Sportliche Statistiken"
+# ---------------------------------------------------------------------------
+
 def render_statistics_page():
     st.title("📊 Sportliche Statistiken")
 
@@ -547,6 +691,11 @@ def render_statistics_page():
         st.info("Keine Spieler hinterlegt.")
         return
 
+    st.subheader("🏅 Rangliste")
+    rangliste = statistik.rangliste(df, alle_spieler)
+    st.dataframe(rangliste, hide_index=True, width="stretch")
+
+    st.subheader("👤 Einzelstatistik")
     spieler = st.selectbox("Spieler auswählen", alle_spieler, key="stats_player_select")
 
     stats = calc.player_stats(df, spieler)
@@ -556,11 +705,20 @@ def render_statistics_page():
     col3.metric("Spiele", stats["gesamt"])
     col4.metric("Quote %", stats["quote"])
 
-    st.divider()
-    vis.plot_match_scatter(df, spieler, alle_spieler)
+    bilanz = statistik.bilanz_pro_gegner(df, spieler, alle_spieler)
+    if bilanz.empty:
+        st.info("Für diesen Spieler gibt es noch keine Ergebnisse.")
+    else:
+        st.markdown(f"**Bilanz von {spieler} gegen jeden Gegner** (✅ Sieg · ❌ Niederlage, neuestes Spiel rechts)")
+        st.dataframe(bilanz, hide_index=True, width="stretch")
+
+    with st.expander("📈 Verlaufsdiagramme pro Gegner"):
+        vis.plot_match_scatter(df, spieler, alle_spieler)
 
     st.subheader("🧮 Gesamt-Matrix")
+    st.caption("Lies von oben nach links: Der Spieler in der **Spalte** hat so oft gegen den Spieler in der **Zeile** gewonnen.")
     matrix = calc.head_to_head_matrix(df, alle_spieler)
+    matrix.index.name = "Verlierer ↓ / Sieger →"
     st.dataframe(matrix, width="stretch")
     st.download_button(
         "📥 Matrix als CSV exportieren",

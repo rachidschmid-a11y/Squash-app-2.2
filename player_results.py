@@ -4,6 +4,7 @@ from datetime import datetime
 import config as cfg
 import database as db
 import export_utils
+import meldungen
 import zeit_utils
 
 @st.dialog("Ergebnis wirklich löschen?")
@@ -13,8 +14,8 @@ def confirm_delete_ergebnis_dialog(result_id, beschreibung):
     with col1:
         if st.button("Ja, löschen", type="primary", width="stretch"):
             if db.delete_spielergebnis(result_id):
-                st.success("Ergebnis erfolgreich gelöscht!")
-            st.rerun()
+                meldungen.merke("Ergebnis wurde gelöscht.")
+                st.rerun()
     with col2:
         if st.button("Abbrechen", width="stretch"):
             st.rerun()
@@ -35,13 +36,14 @@ def render_player_results_page():
         st.warning("Es müssen mindestens 2 aktive Spieler hinterlegt sein, um ein Ergebnis einzutragen.")
     else:
         eingetragen_von = st.selectbox("Wer trägt das Ergebnis ein?", aktive_spieler, key="res_input_by")
-        datum = st.date_input("Spieltag", value=datetime.today(), key="res_date")
+        # Berliner Datum (der Server läuft in UTC - nachts wäre "heute" sonst das Datum von gestern)
+        datum = st.date_input("Spieltag", value=datetime.now(zeit_utils.BERLIN_TZ).date(), key="res_date")
 
         col1, col2 = st.columns(2)
         with col1:
             spieler1 = st.selectbox("Spieler 1", aktive_spieler, key="p1")
         with col2:
-            spieler2 = st.selectbox("Spieler 2", aktive_spieler, key="p2")
+            spieler2 = st.selectbox("Spieler 2", aktive_spieler, index=1, key="p2")
 
         if spieler1 == spieler2:
             st.warning("Spieler müssen unterschiedlich sein")
@@ -81,7 +83,8 @@ def render_player_results_page():
 
             # Nur bei echtem Erfolg Erfolgsmeldung zeigen und neu laden
             if db.save_spielergebnis(data):
-                st.success("Ergebnis gespeichert!")
+                meldungen.merke(f"✅ Ergebnis gespeichert: {gewinner} gewinnt gegen {data['verlierer']} "
+                                f"({data['satz_gewinner']}:{data['satz_verlierer']}).")
                 st.rerun()
 
     st.divider()
@@ -100,7 +103,7 @@ def render_player_results_page():
     st.download_button(
         "📥 Ergebnisse als CSV exportieren",
         data=export_utils.to_csv_bytes(df),
-        file_name=f"spielergebnisse_{datetime.now().strftime('%Y-%m-%d')}.csv",
+        file_name=f"spielergebnisse_{datetime.now(zeit_utils.BERLIN_TZ).strftime('%Y-%m-%d')}.csv",
         mime="text/csv",
         key="dl_spielergebnisse",
     )

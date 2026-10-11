@@ -1,5 +1,6 @@
 import streamlit as st
 import database as db
+import meldungen
 
 @st.dialog("Spieler wirklich löschen?")
 def confirm_delete_spieler_dialog(spieler_id, name):
@@ -16,8 +17,8 @@ def confirm_delete_spieler_dialog(spieler_id, name):
     with col1:
         if st.button("Ja, endgültig löschen", type="primary", width="stretch"):
             if db.delete_spieler(spieler_id):
-                st.success(f"'{name}' wurde gelöscht.")
-            st.rerun()
+                meldungen.merke(f"'{name}' wurde gelöscht.")
+                st.rerun()
     with col2:
         if st.button("Abbrechen", width="stretch"):
             st.rerun()
@@ -44,7 +45,7 @@ def render_spielerverwaltung_page():
                 st.error(f"'{name}' ist bereits in der Liste vorhanden.")
             else:
                 if db.insert_spieler(name):
-                    st.success(f"'{name}' wurde hinzugefügt.")
+                    meldungen.merke(f"'{name}' wurde hinzugefügt.")
                     st.rerun()
 
     st.divider()

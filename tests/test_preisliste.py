@@ -66,3 +66,49 @@ def test_preisstufen_fuer_datum_ermaessigt():
     stufen_ermaessigt = pl.preisstufen_fuer_datum(montag, ermaessigt=True)
     assert stufen_regulaer != stufen_ermaessigt
     assert len(stufen_regulaer) == len(stufen_ermaessigt) == 4
+
+
+# ---------------------------------------------------------------------------
+# Preisliste ausdrücklich wählbar (z.B. Wochentag-Preise an einem Wochenende,
+# wenn der Platzwart eine Vergünstigung gewährt)
+# ---------------------------------------------------------------------------
+
+def test_preis_nach_gewaehlter_liste_unabhaengig_vom_datum():
+    # Wochentag-Liste inkl. Studententarif: 16:45 Uhr ermäßigt = 19 €, regulär = 21 €
+    assert pl.ermittle_preis_fuer_liste(False, time(16, 45), ermaessigt=True) == 19.00
+    assert pl.ermittle_preis_fuer_liste(False, time(16, 45), ermaessigt=False) == 21.00
+    # Wochenend-Liste: kein ermäßigter Tarif
+    assert pl.ermittle_preis_fuer_liste(True, time(10, 0), ermaessigt=True) == 19.00
+    assert pl.ermittle_preis_fuer_liste(True, time(8, 0)) == 17.00
+
+
+def test_datumsfunktionen_liefern_wie_bisher_dasselbe_wie_die_listenfunktionen():
+    montag, sonntag = date(2026, 8, 3), date(2026, 8, 2)
+    for tag, wochenende in ((montag, False), (sonntag, True)):
+        assert pl.preisstufen_fuer_datum(tag, True) == pl.preisstufen_fuer_liste(wochenende, True)
+        assert pl.beide_preise_fuer_datum(tag) == pl.beide_preise_fuer_liste(wochenende)
+        for uhrzeit in (time(9, 0), time(16, 45), time(21, 30)):
+            assert pl.ermittle_preis(tag, uhrzeit, True) == pl.ermittle_preis_fuer_liste(wochenende, uhrzeit, True)
+
+
+def test_beide_preise_wochentag_hat_vier_stufen_wochenende_zwei():
+    assert len(pl.beide_preise_fuer_liste(False)) == 4
+    assert len(pl.beide_preise_fuer_liste(True)) == 2
+
+
+def test_zeitraum_label_normalfall_unveraendert():
+    montag, samstag = date(2026, 8, 3), date(2026, 8, 1)
+    assert pl.zeitraum_label(montag, time(16, 45)) == "16:45–21:00 Uhr"
+    assert pl.zeitraum_label(montag, time(18, 45)) == "16:45–21:00 Uhr"   # Zeit innerhalb einer Stufe
+    assert pl.zeitraum_label(montag, time(8, 0)) == "08:00–15:00 Uhr"
+    assert pl.zeitraum_label(samstag, time(10, 0)) == "10:00–20:00 Uhr"
+    assert pl.zeitraum_label(samstag, time(8, 0)) == "08:00–10:00 Uhr"
+
+
+def test_zeitraum_label_wochentag_stufe_an_einem_wochenende():
+    """Wurde am Sonntag die Wochentag-Preisliste gewählt, steht als Startzeit
+    z.B. 16:45 in der Datenbank - das Label muss dann den Wochentag-Zeitraum
+    zeigen und nicht '10:00–20:00 Uhr' der Wochenend-Liste."""
+    sonntag = date(2026, 8, 2)
+    assert pl.zeitraum_label(sonntag, time(16, 45)) == "16:45–21:00 Uhr"
+    assert pl.zeitraum_label(sonntag, time(15, 0)) == "15:00–16:45 Uhr"
