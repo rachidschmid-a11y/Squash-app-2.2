@@ -41,8 +41,8 @@ lokaler Entwicklung und Deployment.
 
 | Bereich | Funktionen |
 |---|---|
-| 🏠 **Dashboard** | Zentrale Startseite: Kartenguthaben, aktive Spieler, letzte Session und Match-Statistik auf einen Blick, plus Schnellzugriffe auf die anderen Seiten |
-| 💰 **Abrechnung & Guthaben** | Neue Wertkarte aktivieren (inkl. optionaler Vergünstigung), Spiel-Sessions eintragen (in vier übersichtlichen Tabs; Zeitraum, Tarif und Mitspieler werden aus der letzten Session vorbelegt, Vorschau vor dem Speichern, Bestätigung danach), automatische Endabrechnung bei aufgebrauchtem Guthaben, fehlerhafte Einträge korrigieren/löschen (auch bereits abgerechnete), versehentlich abgerechnete Karten reaktivieren, CSV-Export |
+| 🏠 **Dashboard** | Zentrale Startseite: Kartenguthaben, aktive Spieler, letzte Session und Match-Statistik auf einen Blick. Ist keine Karte aktiv, steht dort direkt die Abrechnung („Wer zahlt wem“). Dazu Schnellzugriffe auf die anderen Seiten |
+| 💰 **Abrechnung & Guthaben** | Vier Tabs, das Restguthaben steht immer oben: **➕ Session** (Spiel eintragen: Zeitraum und Tarif aus der letzten Session vorbelegt, Mitspieler per Dropdown oder mit dem Knopf „Wie letzte Session“, Vorschau vor dem Speichern, Bestätigung danach) · **💳 Stand** (Kartenübersicht, grafische Kostenstatistik, alle Einträge, CSV-Export) · **🔄 Neue Karte** (letzte Abrechnung als Tabelle, neue Wertkarte inkl. optionaler Vergünstigung aktivieren, nur solange keine andere Karte aktiv ist) · **🛠️ Korrektur** (Einträge löschen, aktive Karte stornieren, abgerechnete Karte reaktivieren). Reicht das Guthaben nicht mehr, rechnet die App die Karte automatisch ab |
 | 🏆 **Matches eintragen** | Ergebnisse (Sätze, Gewinner/Verlierer) erfassen und verwalten, CSV-Export |
 | 📊 **Sportliche Statistiken** | Rangliste, Sieg-/Niederlagen-Quote pro Spieler, Bilanz und Form gegen jeden Gegner, Head-to-Head-Matrix, Verlaufsdiagramme |
 | 👥 **Spielerverwaltung** | Spieler hinzufügen, deaktivieren (reversibel) oder endgültig löschen – ohne Code-Änderung |
@@ -69,7 +69,7 @@ lokaler Entwicklung und Deployment.
 ├── dashboard.py                # Seite "🏠 Dashboard" (Startseite/Überblick)
 ├── meldungen.py               # Bestätigungen, die einen Seiten-Neuaufbau überleben
 ├── statistik.py               # Rangliste und Bilanz pro Gegner (reine Funktionen)
-├── ui.py                      # Seite "Abrechnung & Guthaben" + Statistik-Seite
+├── ui.py                      # Seite "Abrechnung & Guthaben" (vier Tabs) + Statistik-Seite
 ├── player_results.py          # Seite "Matches eintragen"
 ├── spieler_verwaltung.py      # Seite "Spielerverwaltung"
 ├── calculations.py            # Kernlogik: Kosten, Guthaben, Abrechnung, Statistik
@@ -400,7 +400,7 @@ Rutscht das Guthaben durch einen (fehlerhaften) Eintrag ins Minus, rechnet
 die App die Karte automatisch ab und deaktiviert sie – Korrekturen daran
 sind über die normale Oberfläche danach nicht mehr möglich, da alle
 Bearbeitungsfunktionen nur auf die aktuell aktive Karte zugreifen. Über
-**💰 Abrechnung & Guthaben → 🗑️ Fehlerhaften Eintrag oder Karte löschen →
+**💰 Abrechnung & Guthaben → Tab 🛠️ Korrektur →
 ↩️ Kürzlich abgerechnete Karte reaktivieren** lässt sich eine der letzten
 fünf abgeschlossenen Karten wieder aktiv schalten: Die verfrühte Abrechnung
 wird gelöscht, die zugehörigen Spiele werden wieder bearbeitbar, und der
