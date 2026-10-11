@@ -36,15 +36,19 @@ def render_karten_uebersicht(karte):
     rest = karte["guthaben"]
     verbraucht = round(aufgeladen - rest, 2) if aufgeladen is not None else None
 
-    # Kompakte Tabelle statt vier einzelner Kennzahlen: auf dem Handy stapeln
-    # sich st.columns untereinander und würden einen ganzen Bildschirm füllen.
+    # Schmale Tabelle (Bezeichnung | Betrag) statt vier einzelner Kennzahlen: auf dem Handy stapeln
+    # sich st.columns untereinander und würden einen ganzen Bildschirm füllen, und eine Tabelle mit
+    # vier Spalten nebeneinander wäre auf 390 Pixel Breite zu breit.
     def betrag(wert):
         return f"{wert:.2f} €" if wert is not None else "–"
 
     st.markdown(
-        "| Aufgeladen | Bezahlt | Verbraucht | Restguthaben |\n"
-        "|:--:|:--:|:--:|:--:|\n"
-        f"| {betrag(aufgeladen)} | {betrag(bezahlt)} | {betrag(verbraucht)} | **{rest:.2f} €** |"
+        "| Kartenübersicht | Betrag |\n"
+        "|:--|--:|\n"
+        f"| Aufgeladen | {betrag(aufgeladen)} |\n"
+        f"| Bezahlt | {betrag(bezahlt)} |\n"
+        f"| Verbraucht | {betrag(verbraucht)} |\n"
+        f"| **Restguthaben** | **{rest:.2f} €** |"
     )
 
     if aufgeladen and aufgeladen > 0:

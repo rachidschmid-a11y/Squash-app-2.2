@@ -275,8 +275,8 @@ def _tab_session(aktive_spieler, karte):
         f"(ohne Kartenrabatt - der wirkt erst in der Endabrechnung)"
     )
 
-    # Mitspieler als antippbare Auswahl-Chips (alle Namen sichtbar, ein Tipp
-    # pro Spieler) statt einer Dropdown-Liste - auf dem Handy deutlich schneller.
+    # Mitspieler per Dropdown (Mehrfachauswahl). Der Knopf darüber übernimmt die
+    # Gruppe der letzten Session mit einem Tipp.
     if vorgaben["mitspieler"]:
         st.button(
             f"👥 Wie letzte Session ({', '.join(vorgaben['mitspieler'])})",
@@ -284,12 +284,7 @@ def _tab_session(aktive_spieler, karte):
             args=(vorgaben["mitspieler"],),
             key="btn_wie_letzte_session",
         )
-    auswahl = st.pills(
-        "Mitspieler auswählen",
-        aktive_spieler,
-        selection_mode="multi",
-        key="fin_mitspieler",
-    ) or []
+    auswahl = st.multiselect("Mitspieler auswählen", aktive_spieler, key="fin_mitspieler")
 
     # kein value=...: der Startwert ist min_value (1), und fin_units wird nach dem Speichern per session_state zurückgesetzt
     einheiten = st.number_input("Einheiten (45 Minuten)", min_value=1, max_value=20, key="fin_units")
@@ -376,26 +371,6 @@ def _tab_kartenstand(aktive_spieler, karte, spiele):
     else:
         st.warning("Keine aktive Karte vorhanden. Bitte neue Karte starten.")
 
-    st.subheader("Einträge auf dieser Karte")
-    if spiele:
-        if any(row.get("einheiten") == 0 for row in spiele):
-            st.caption(
-                "ℹ️ Zeilen mit 0 Einheiten sind keine eigenen Sessions, sondern "
-                "Überschuss-Anteile aus einer Session, die das Guthaben einer Karte "
-                "überschritten hat (siehe Hinweis im Tab „🔄 Neue Karte“)."
-            )
-        df_display = calc.format_dataframe(pd.DataFrame(spiele))
-        st.dataframe(df_display, width="stretch")
-        st.download_button(
-            "📥 Spiele-Übersicht als CSV exportieren",
-            data=export_utils.to_csv_bytes(df_display),
-            file_name=f"spiele_kosten_{date.today().isoformat()}.csv",
-            mime="text/csv",
-            key="dl_spiele_kosten",
-        )
-    else:
-        st.info("Noch keine Spiele auf der aktuellen Karte vorhanden")
-
     st.subheader("Kostenstatistik")
     if spiele:
         df_stats = pd.DataFrame(spiele).groupby("spieler")["kosten"].sum().reset_index()
@@ -460,6 +435,26 @@ def _tab_kartenstand(aktive_spieler, karte, spiele):
             )
         else:
             st.info("Noch keine Daten für eine Visualisierung vorhanden.")
+
+    st.subheader("Einträge auf dieser Karte")
+    if spiele:
+        if any(row.get("einheiten") == 0 for row in spiele):
+            st.caption(
+                "ℹ️ Zeilen mit 0 Einheiten sind keine eigenen Sessions, sondern "
+                "Überschuss-Anteile aus einer Session, die das Guthaben einer Karte "
+                "überschritten hat (siehe Hinweis im Tab „🔄 Neue Karte“)."
+            )
+        df_display = calc.format_dataframe(pd.DataFrame(spiele))
+        st.dataframe(df_display, width="stretch")
+        st.download_button(
+            "📥 Spiele-Übersicht als CSV exportieren",
+            data=export_utils.to_csv_bytes(df_display),
+            file_name=f"spiele_kosten_{date.today().isoformat()}.csv",
+            mime="text/csv",
+            key="dl_spiele_kosten",
+        )
+    else:
+        st.info("Noch keine Spiele auf der aktuellen Karte vorhanden")
 
 
 def _tab_neue_karte(aktive_spieler, karte):
