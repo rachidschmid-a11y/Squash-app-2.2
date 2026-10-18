@@ -16,24 +16,31 @@ development, and deployment.
 > personal data (no real names, credentials, or financial figures). All
 > example values are fictional or illustrative only.
 
+<p align="center">
+  <img src="docs/screenshots/vorschau.png" alt="Squash Hub on a computer and on phones" width="900">
+</p>
+
+> All images in this documentation show **fictional example data** (e.g. Anna, Ben, Clara, David). They were created with a local demo without a real database and contain no personal data.
+
 ---
 
 ## Table of Contents
 
 1. [Feature Overview](#feature-overview)
-2. [Tech Stack](#tech-stack)
-3. [Project Structure](#project-structure)
-4. [Prerequisites](#prerequisites)
-5. [Setup Step 1: Set Up a Supabase Project](#setup-step-1-set-up-a-supabase-project)
-6. [Setup Step 2: Create the Database Schema](#setup-step-2-create-the-database-schema)
-7. [Setup Step 3: Local Development Environment](#setup-step-3-local-development-environment)
-8. [Setup Step 4: Deploy to Streamlit Community Cloud](#setup-step-4-deploy-to-streamlit-community-cloud)
-9. [Configuration](#configuration)
-10. [Tests](#tests)
-11. [Database Schema Reference](#database-schema-reference)
-12. [Troubleshooting](#troubleshooting)
-13. [Security Notes](#security-notes)
-14. [License](#license)
+2. [A Look Inside the App](#a-look-inside-the-app)
+3. [Tech Stack](#tech-stack)
+4. [Project Structure](#project-structure)
+5. [Prerequisites](#prerequisites)
+6. [Setup Step 1: Set Up a Supabase Project](#setup-step-1-set-up-a-supabase-project)
+7. [Setup Step 2: Create the Database Schema](#setup-step-2-create-the-database-schema)
+8. [Setup Step 3: Local Development Environment](#setup-step-3-local-development-environment)
+9. [Setup Step 4: Deploy to Streamlit Community Cloud](#setup-step-4-deploy-to-streamlit-community-cloud)
+10. [Configuration](#configuration)
+11. [Tests](#tests)
+12. [Database Schema Reference](#database-schema-reference)
+13. [Troubleshooting](#troubleshooting)
+14. [Security Notes](#security-notes)
+15. [License](#license)
 
 ---
 
@@ -48,6 +55,66 @@ development, and deployment.
 | 👥 **Player Management** | Add players, deactivate them (reversible), or delete them permanently — no code changes required |
 | 🔒 **Access Control** | Simple shared password protection for the whole app |
 
+---
+
+## A Look Inside the App
+
+**Example:** Four players share a value card with a balance of €240, for which €200 was paid. After each game someone logs the session: pick the time slot, players and units, and the app deducts the list price from the balance and splits the cost to the cent. When the balance no longer suffices, the session is split between the old and the next card, the old card is settled automatically, and the remainder is carried over to the new card. The pictures show a phone; the app works the same on a computer.
+
+### Logging a session
+
+<table width="100%">
+<tr>
+<td width="33%" align="center" valign="top"><a href="docs/screenshots/handy-session.png"><img src="docs/screenshots/handy-session.png" width="205" alt="Log a session"></a><br><sub><b>Log a session</b> – price list, time slot and players, pre-filled from the last session</sub></td>
+<td width="33%" align="center" valign="top"><a href="docs/screenshots/handy-preisliste.png"><img src="docs/screenshots/handy-preisliste.png" width="205" alt="Selectable price list"></a><br><sub><b>Selectable price list</b> – weekend list on weekends, switchable when needed</sub></td>
+<td width="33%" align="center" valign="top"><a href="docs/screenshots/handy-bestaetigung.png"><img src="docs/screenshots/handy-bestaetigung.png" width="205" alt="Confirmation"></a><br><sub><b>Confirmation</b> – amount and new remaining balance after saving</sub></td>
+</tr>
+</table>
+
+### When the balance is not enough
+
+<table width="100%">
+<tr>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-ueberschuss.png"><img src="docs/screenshots/handy-ueberschuss.png" width="205" alt="Preview"></a><br><sub><b>Preview</b> – the session is split across two cards</sub></td>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-karte-leer.png"><img src="docs/screenshots/handy-karte-leer.png" width="205" alt="Card used up"></a><br><sub><b>Card used up</b> – automatic settlement, remainder moves to the next card</sub></td>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-abrechnung.png"><img src="docs/screenshots/handy-abrechnung.png" width="205" alt="Settlement"></a><br><sub><b>Settlement</b> – who pays whom, with a control sum</sub></td>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-neue-karte.png"><img src="docs/screenshots/handy-neue-karte.png" width="205" alt="New card"></a><br><sub><b>New card</b> – incl. discount, the overage is taken over</sub></td>
+</tr>
+</table>
+
+### Overview and statistics
+
+<table width="100%">
+<tr>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-dashboard.png"><img src="docs/screenshots/handy-dashboard.png" width="205" alt="Dashboard"></a><br><sub><b>Dashboard</b> – balance, players, last session, match stats</sub></td>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-stand.png"><img src="docs/screenshots/handy-stand.png" width="205" alt="Card balance"></a><br><sub><b>Card balance</b> – key figures, usage, graphical cost statistics</sub></td>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-statistik.png"><img src="docs/screenshots/handy-statistik.png" width="205" alt="Statistics"></a><br><sub><b>Statistics</b> – leaderboard, record and form against each opponent</sub></td>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-matches.png"><img src="docs/screenshots/handy-matches.png" width="205" alt="Matches"></a><br><sub><b>Matches</b> – record and manage results</sub></td>
+</tr>
+</table>
+
+### Administration and appearance
+
+<table width="100%">
+<tr>
+<td width="33%" align="center" valign="top"><a href="docs/screenshots/handy-korrektur.png"><img src="docs/screenshots/handy-korrektur.png" width="205" alt="Correction"></a><br><sub><b>Correction</b> – delete entries, cancel or reactivate a card</sub></td>
+<td width="33%" align="center" valign="top"><a href="docs/screenshots/handy-spieler.png"><img src="docs/screenshots/handy-spieler.png" width="205" alt="Player management"></a><br><sub><b>Player management</b> – add, deactivate, delete</sub></td>
+<td width="33%" align="center" valign="top"><a href="docs/screenshots/handy-dunkel.png"><img src="docs/screenshots/handy-dunkel.png" width="205" alt="Dark mode"></a><br><sub><b>Dark mode</b> – follows the device setting</sub></td>
+</tr>
+</table>
+
+### On a computer
+
+<table width="100%">
+<tr>
+<td width="50%" align="center"><a href="docs/screenshots/desktop-dashboard.png"><img src="docs/screenshots/desktop-dashboard.png" width="430" alt="Dashboard"></a></td>
+<td width="50%" align="center"><a href="docs/screenshots/desktop-session.png"><img src="docs/screenshots/desktop-session.png" width="430" alt="Session"></a></td>
+</tr>
+<tr>
+<td width="50%" align="center"><a href="docs/screenshots/desktop-stand.png"><img src="docs/screenshots/desktop-stand.png" width="430" alt="Kartenstand"></a></td>
+<td width="50%" align="center"><a href="docs/screenshots/desktop-statistik.png"><img src="docs/screenshots/desktop-statistik.png" width="430" alt="Statistik"></a></td>
+</tr>
+</table>
 ---
 
 ## Tech Stack
@@ -84,6 +151,8 @@ development, and deployment.
 ├── devcontainer.json           # Optional dev container config (VS Code/Codespaces)
 ├── .streamlit/
 │   └── secrets.toml.example   # Template for credentials (see below)
+├── docs/
+│   └── screenshots/               # Images for this documentation (example data only)
 ├── tests/
 │   ├── test_calculations.py
 │   ├── test_preisliste.py

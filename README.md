@@ -16,24 +16,31 @@ lokaler Entwicklung und Deployment.
 > personenbezogenen Daten (keine echten Namen, Zugangsdaten oder
 > Finanzdaten). Alle Beispielwerte sind frei erfunden bzw. exemplarisch.
 
+<p align="center">
+  <img src="docs/screenshots/vorschau.png" alt="Squash Hub am Rechner und auf dem Handy" width="900">
+</p>
+
+> Alle Bilder in dieser Dokumentation zeigen **erfundene Beispieldaten** (z. B. Anna, Ben, Clara, David). Sie entstanden mit einer lokalen Demo ohne echte Datenbank und enthalten keine personenbezogenen Daten.
+
 ---
 
 ## Inhaltsverzeichnis
 
 1. [Funktionsübersicht](#funktionsübersicht)
-2. [Technischer Stack](#technischer-stack)
-3. [Projektstruktur](#projektstruktur)
-4. [Voraussetzungen](#voraussetzungen)
-5. [Setup Schritt 1: Supabase-Projekt einrichten](#setup-schritt-1-supabase-projekt-einrichten)
-6. [Setup Schritt 2: Datenbankschema anlegen](#setup-schritt-2-datenbankschema-anlegen)
-7. [Setup Schritt 3: Lokale Entwicklungsumgebung](#setup-schritt-3-lokale-entwicklungsumgebung)
-8. [Setup Schritt 4: Deployment auf Streamlit Community Cloud](#setup-schritt-4-deployment-auf-streamlit-community-cloud)
-9. [Konfiguration](#konfiguration)
-10. [Tests](#tests)
-11. [Datenbank-Schema-Referenz](#datenbank-schema-referenz)
-12. [Troubleshooting](#troubleshooting)
-13. [Sicherheitshinweise](#sicherheitshinweise)
-14. [Lizenz](#lizenz)
+2. [Einblick in die App](#einblick-in-die-app)
+3. [Technischer Stack](#technischer-stack)
+4. [Projektstruktur](#projektstruktur)
+5. [Voraussetzungen](#voraussetzungen)
+6. [Setup Schritt 1: Supabase-Projekt einrichten](#setup-schritt-1-supabase-projekt-einrichten)
+7. [Setup Schritt 2: Datenbankschema anlegen](#setup-schritt-2-datenbankschema-anlegen)
+8. [Setup Schritt 3: Lokale Entwicklungsumgebung](#setup-schritt-3-lokale-entwicklungsumgebung)
+9. [Setup Schritt 4: Deployment auf Streamlit Community Cloud](#setup-schritt-4-deployment-auf-streamlit-community-cloud)
+10. [Konfiguration](#konfiguration)
+11. [Tests](#tests)
+12. [Datenbank-Schema-Referenz](#datenbank-schema-referenz)
+13. [Troubleshooting](#troubleshooting)
+14. [Sicherheitshinweise](#sicherheitshinweise)
+15. [Lizenz](#lizenz)
 
 ---
 
@@ -48,6 +55,66 @@ lokaler Entwicklung und Deployment.
 | 👥 **Spielerverwaltung** | Spieler hinzufügen, deaktivieren (reversibel) oder endgültig löschen – ohne Code-Änderung |
 | 🔒 **Zugriffsschutz** | Einfacher, gemeinsamer Passwortschutz für die ganze App |
 
+---
+
+## Einblick in die App
+
+**Beispiel:** Vier Spielende teilen sich eine Wertkarte mit 240 € Guthaben, bezahlt wurden 200 €. Nach jedem Spiel trägt jemand die Session ein: Zeitraum, Mitspieler und Einheiten wählen, die App zieht den Listenpreis vom Guthaben ab und teilt die Kosten cent-genau auf. Reicht das Guthaben nicht mehr, wird die Session auf die alte und die nächste Karte aufgeteilt, die alte Karte automatisch abgerechnet und der Rest auf die neue Karte übertragen. Die Bilder sind für das Handy gedacht, die App funktioniert genauso am Rechner.
+
+### Eine Session eintragen
+
+<table width="100%">
+<tr>
+<td width="33%" align="center" valign="top"><a href="docs/screenshots/handy-session.png"><img src="docs/screenshots/handy-session.png" width="205" alt="Session eintragen"></a><br><sub><b>Session eintragen</b> – Preisliste, Zeitraum und Mitspieler, vorbelegt aus der letzten Session</sub></td>
+<td width="33%" align="center" valign="top"><a href="docs/screenshots/handy-preisliste.png"><img src="docs/screenshots/handy-preisliste.png" width="205" alt="Preisliste wählbar"></a><br><sub><b>Preisliste wählbar</b> – am Wochenende gilt die Wochenend-Liste, bei Bedarf umstellbar</sub></td>
+<td width="33%" align="center" valign="top"><a href="docs/screenshots/handy-bestaetigung.png"><img src="docs/screenshots/handy-bestaetigung.png" width="205" alt="Bestätigung"></a><br><sub><b>Bestätigung</b> – Betrag und neues Restguthaben nach dem Speichern</sub></td>
+</tr>
+</table>
+
+### Wenn das Guthaben nicht reicht
+
+<table width="100%">
+<tr>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-ueberschuss.png"><img src="docs/screenshots/handy-ueberschuss.png" width="205" alt="Vorschau"></a><br><sub><b>Vorschau</b> – die Session wird auf zwei Karten aufgeteilt</sub></td>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-karte-leer.png"><img src="docs/screenshots/handy-karte-leer.png" width="205" alt="Karte aufgebraucht"></a><br><sub><b>Karte aufgebraucht</b> – automatische Abrechnung, Rest auf die nächste Karte</sub></td>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-abrechnung.png"><img src="docs/screenshots/handy-abrechnung.png" width="205" alt="Abrechnung"></a><br><sub><b>Abrechnung</b> – wer zahlt wem, mit Summenkontrolle</sub></td>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-neue-karte.png"><img src="docs/screenshots/handy-neue-karte.png" width="205" alt="Neue Karte"></a><br><sub><b>Neue Karte</b> – inklusive Vergünstigung, Überschuss wird übernommen</sub></td>
+</tr>
+</table>
+
+### Überblick und Auswertung
+
+<table width="100%">
+<tr>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-dashboard.png"><img src="docs/screenshots/handy-dashboard.png" width="205" alt="Dashboard"></a><br><sub><b>Dashboard</b> – Guthaben, Spieler, letzte Session, Match-Statistik</sub></td>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-stand.png"><img src="docs/screenshots/handy-stand.png" width="205" alt="Kartenstand"></a><br><sub><b>Kartenstand</b> – Kennzahlen, Verbrauch, grafische Kostenstatistik</sub></td>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-statistik.png"><img src="docs/screenshots/handy-statistik.png" width="205" alt="Statistik"></a><br><sub><b>Statistik</b> – Rangliste, Bilanz und Form gegen jeden Gegner</sub></td>
+<td width="25%" align="center" valign="top"><a href="docs/screenshots/handy-matches.png"><img src="docs/screenshots/handy-matches.png" width="205" alt="Matches"></a><br><sub><b>Matches</b> – Ergebnisse erfassen und verwalten</sub></td>
+</tr>
+</table>
+
+### Verwaltung und Darstellung
+
+<table width="100%">
+<tr>
+<td width="33%" align="center" valign="top"><a href="docs/screenshots/handy-korrektur.png"><img src="docs/screenshots/handy-korrektur.png" width="205" alt="Korrektur"></a><br><sub><b>Korrektur</b> – Einträge löschen, Karte stornieren oder reaktivieren</sub></td>
+<td width="33%" align="center" valign="top"><a href="docs/screenshots/handy-spieler.png"><img src="docs/screenshots/handy-spieler.png" width="205" alt="Spielerverwaltung"></a><br><sub><b>Spielerverwaltung</b> – hinzufügen, deaktivieren, löschen</sub></td>
+<td width="33%" align="center" valign="top"><a href="docs/screenshots/handy-dunkel.png"><img src="docs/screenshots/handy-dunkel.png" width="205" alt="Dunkelmodus"></a><br><sub><b>Dunkelmodus</b> – folgt der Einstellung des Geräts</sub></td>
+</tr>
+</table>
+
+### Am Rechner
+
+<table width="100%">
+<tr>
+<td width="50%" align="center"><a href="docs/screenshots/desktop-dashboard.png"><img src="docs/screenshots/desktop-dashboard.png" width="430" alt="Dashboard"></a></td>
+<td width="50%" align="center"><a href="docs/screenshots/desktop-session.png"><img src="docs/screenshots/desktop-session.png" width="430" alt="Session"></a></td>
+</tr>
+<tr>
+<td width="50%" align="center"><a href="docs/screenshots/desktop-stand.png"><img src="docs/screenshots/desktop-stand.png" width="430" alt="Kartenstand"></a></td>
+<td width="50%" align="center"><a href="docs/screenshots/desktop-statistik.png"><img src="docs/screenshots/desktop-statistik.png" width="430" alt="Statistik"></a></td>
+</tr>
+</table>
 ---
 
 ## Technischer Stack
@@ -84,6 +151,8 @@ lokaler Entwicklung und Deployment.
 ├── devcontainer.json           # Optionale Dev-Container-Konfiguration (VS Code/Codespaces)
 ├── .streamlit/
 │   └── secrets.toml.example   # Vorlage für die Zugangsdaten (siehe unten)
+├── docs/
+│   └── screenshots/               # Bilder der Dokumentation (nur Beispieldaten)
 ├── tests/
 │   ├── test_calculations.py
 │   ├── test_preisliste.py
