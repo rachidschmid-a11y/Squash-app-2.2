@@ -24,7 +24,7 @@ def confirm_delete_spieler_dialog(spieler_id, name):
             st.rerun()
 
 def render_spielerverwaltung_page():
-    st.title("👥 Spielerverwaltung")
+    st.title("👥 Spieler\u00adverwaltung")  # weicher Trennstrich: auf dem Handy bricht der Titel sonst mitten im Wort um
     st.caption(
         "Die Spielerliste wird in der Datenbank gepflegt - keine Code-Änderung "
         "mehr nötig, wenn jemand dazukommt oder aufhört."
